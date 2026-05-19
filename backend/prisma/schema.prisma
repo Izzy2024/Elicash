@@ -1,0 +1,198 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Tenant {
+  id        String   @id @default(uuid())
+  name      String
+  currency  String   @default("USD")
+  symbol    String   @default("$")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  users     User[]
+  rutas     Ruta[]
+}
+
+model Role {
+  id          String   @id @default(uuid())
+  name        String   @unique // e.g. "admin", "cobrador", "supervisor"
+  description String?
+  users       User[]
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  name      String
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  roleId    String
+  role      Role     @relation(fields: [roleId], references: [id])
+  rutas     Ruta[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Fase 2 - Clientes
+model Client {
+  id          String       @id @default(uuid())
+  nombre      String
+  cedula      String
+  foto_url    String?
+  direccion   String
+  telefono    String
+  ruta_id     String?      
+  ruta        Ruta?        @relation(fields: [ruta_id], references: [id])
+  score       Float        @default(0)
+  score_updated_at DateTime?
+  tenantId    String?      
+  
+  references  Reference[]
+  guarantors  Guarantor[]
+  documents   Document[]
+  loans       Loan[]
+
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@unique([tenantId, cedula])
+}
+
+model Ruta {
+  id          String   @id @default(uuid())
+  nombre      String
+  descripcion String?
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  cobrador_id String?
+  cobrador    User?    @relation(fields: [cobrador_id], references: [id])
+  activa      Boolean  @default(true)
+  clients     Client[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Reference {
+  id        String @id @default(uuid())
+  client_id String
+  client    Client @relation(fields: [client_id], references: [id])
+  nombre    String
+  telefono  String
+  relacion  String
+}
+
+model Guarantor {
+  id        String @id @default(uuid())
+  client_id String
+  client    Client @relation(fields: [client_id], references: [id])
+  nombre    String
+  cedula    String
+  telefono  String
+  foto_url  String?
+}
+
+model Document {
+  id          String   @id @default(uuid())
+  client_id   String
+  client      Client   @relation(fields: [client_id], references: [id])
+  tipo        String
+  archivo_url String
+  createdAt   DateTime @default(now())
+}
+
+// Fase 3 - Préstamos
+model Loan {
+  id              String   @id @default(uuid())
+  client_id       String
+  client          Client   @relation(fields: [client_id], references: [id])
+  monto           Float
+  tasa_interes    Float
+  tipo_interes    String   // "simple" | "compuesto"
+  tipo_prestamo   String   @default("cuotas") // "cuotas" | "sin_plazo"
+  frecuencia      String   // "diaria", "semanal", "quincenal", "mensual"
+  num_cuotas      Int?                         // null para sin_plazo
+  saldo_capital   Float?                       // saldo vivo de capital; solo sin_plazo
+  fecha_inicio    DateTime
+  estado          String   @default("activo") // activo, completado, mora
+  created_by      String   // User ID
+
+  installments    Installment[]
+  loanConfig      LoanConfig?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model Installment {
+  id                String    @id @default(uuid())
+  loan_id           String
+  loan              Loan      @relation(fields: [loan_id], references: [id])
+  numero            Int
+  fecha_vencimiento DateTime
+  monto_cuota       Float
+  monto_interes     Float
+
+  // Reprogramación automática de abonos parciales
+  tipo              String    @default("normal") // normal | arrastre
+  cuota_origen_id   String?
+  cuota_origen      Installment? @relation("InstallmentReprogramacion", fields: [cuota_origen_id], references: [id])
+  cuotas_arrastre   Installment[] @relation("InstallmentReprogramacion")
+
+  capital_pagado    Float     @default(0)
+  interes_pagado    Float     @default(0)
+  mora_pagada       Float     @default(0)
+
+  saldo_pendiente   Float
+  estado            String    @default("pendiente") // pendiente, pagada, mora, reprogramada
+
+  payments          Payment[]
+}
+
+model Payment {
+  id                String      @id @default(uuid())
+  installment_id    String
+  installment       Installment @relation(fields: [installment_id], references: [id])
+
+  monto_pagado      Float
+  monto_a_capital   Float       @default(0)
+  monto_a_interes   Float       @default(0)
+  monto_a_mora      Float       @default(0)
+
+  // Cuánto saldo se reprogramó al final del préstamo por este pago (0 si no aplica)
+  saldo_reprogramado Float      @default(0)
+
+  fecha_pago        DateTime    @default(now())
+  foto_recibo_url   String?
+  cobrador_id       String
+  numero_control    Int         @default(0)
+  clientRequestId   String?     @unique
+
+  distribucion_manual Boolean   @default(false)
+  es_excedente      Boolean   @default(false)
+  notas             String?
+}
+
+// Fase 5 - Alertas Logging
+model AlertLog {
+  id              String   @id @default(uuid())
+  installment_id  String
+  client_id       String
+  tipo_alerta     String   // "recordatorio", "vencimiento", "mora"
+  fecha_envio     DateTime @default(now())
+}
+
+// Configuración de distribución de pagos por préstamo
+model LoanConfig {
+  id                    String @id @default(uuid())
+  loan_id               String @unique
+  loan                  Loan   @relation(fields: [loan_id], references: [id])
+
+  orden_distribucion    String @default("interes_primero")
+  permite_distribucion_manual Boolean @default(true)
+  tasa_mora_diaria      Float  @default(0)
+}

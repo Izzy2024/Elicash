@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-05-13T12:00:00Z",
+  "title": "Design System: EliCash",
+  "extensions": {
+    "colorMeta": {
+      "primary": { "role": "primary", "displayName": "Slate Night", "canonical": "#0F172A" },
+      "secondary": { "role": "secondary", "displayName": "Trust Blue", "canonical": "#3B82F6" },
+      "danger": { "role": "danger", "displayName": "Critical Red", "canonical": "#EF4444" }
+    },
+    "motion": [
+      { "name": "scale-press", "value": "scale(0.96)", "purpose": "Feedback táctil en botones" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Moroso Card",
+      "kind": "card",
+      "description": "Tarjeta para mostrar un cliente en mora con su nivel de riesgo.",
+      "html": "<div class=\"ds-moroso-card\"><div class=\"ds-header\"><span>Juan Pérez</span><span class=\"ds-badge ds-badge-critical\">Crítico</span></div><div class=\"ds-body\"><span>$1,500.00</span><span>32 días</span></div></div>",
+      "css": ".ds-moroso-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 1rem; padding: 1rem; box-shadow: 0 2px 10px rgba(0,0,0,0.06); transition: border-color 0.2s; } .ds-moroso-card:hover { border-color: #3b82f6; } .ds-header { display: flex; justify-content: space-between; font-weight: 600; margin-bottom: 0.5rem; } .ds-badge { font-size: 0.75rem; padding: 0.25rem 0.5rem; border-radius: 999px; } .ds-badge-critical { background: #fee2e2; color: #ef4444; } .ds-body { display: flex; justify-content: space-between; font-variant-numeric: tabular-nums; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "Precision Dashboard",
+    "overview": "EliCash es una herramienta de productividad diaria diseñada para la eficiencia. La estética es limpia, profesional y directa.",
+    "keyCharacteristics": ["Alta densidad de información", "Uso semántico del color", "Micro-interacciones sutiles"],
+    "rules": [
+      { "name": "The Risk Color Rule", "body": "El rojo y el naranja están reservados para estados de mora.", "section": "colors" },
+      { "name": "The Tabular Data Rule", "body": "Montos monetarios deben usar tabular-nums.", "section": "typography" }
+    ],
+    "dos": ["Do usar bordes concéntricos", "Do alinear montos a la derecha"],
+    "donts": ["Don't usar degradados llamativos", "Don't saturar con tarjetas anidadas"]
+  }
+}
