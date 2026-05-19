@@ -1,0 +1,8 @@
+---
+import MainLayout from '../../layouts/MainLayout.astro';
+import AccountStatementPage from '../../components/AccountStatementPage';
+---
+
+<MainLayout title="Estado de Cuenta">
+  <AccountStatementPage client:only="react" />
+</MainLayout>

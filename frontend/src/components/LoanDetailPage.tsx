@@ -29,10 +29,11 @@ type Loan = {
 };
 
 type LoanDetailPageProps = {
-  loanId: string;
+  loanId?: string;
 };
 
-export default function LoanDetailPage({ loanId }: LoanDetailPageProps) {
+export default function LoanDetailPage({ loanId: loanIdProp }: LoanDetailPageProps) {
+  const loanId = loanIdProp ?? new URLSearchParams(window.location.search).get('id') ?? '';
   const { user, symbol } = useAuthStore();
   const { refresh: refreshQueue } = useOfflineQueue();
   const [loan, setLoan] = useState<Loan | null>(null);

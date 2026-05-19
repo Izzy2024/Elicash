@@ -55,10 +55,11 @@ type Client = {
 };
 
 type AccountStatementPageProps = {
-  clientId: string;
+  clientId?: string;
 };
 
-export default function AccountStatementPage({ clientId }: AccountStatementPageProps) {
+export default function AccountStatementPage({ clientId: clientIdProp }: AccountStatementPageProps) {
+  const clientId = clientIdProp ?? new URLSearchParams(window.location.search).get('id') ?? '';
   const { user, symbol } = useAuthStore();
   const { refresh: refreshQueue } = useOfflineQueue();
   const [client, setClient] = useState<Client | null>(null);

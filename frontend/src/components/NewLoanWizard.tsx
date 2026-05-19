@@ -70,7 +70,7 @@ export default function NewLoanWizard() {
       const loan = await apiService.post('/api/loans', payload);
       if (loan) {
         alert('Préstamo originado exitosamente.');
-        window.location.href = `/prestamos/${loan.id}`;
+        window.location.href = `/prestamos/detalle?id=${loan.id}`;
       }
     } catch (err: any) {
       alert(err.message || 'Error al crear préstamo');

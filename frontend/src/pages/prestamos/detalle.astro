@@ -1,0 +1,8 @@
+---
+import MainLayout from '../../layouts/MainLayout.astro';
+import LoanDetailPage from '../../components/LoanDetailPage';
+---
+
+<MainLayout title="Detalle Préstamo">
+  <LoanDetailPage client:only="react" />
+</MainLayout>

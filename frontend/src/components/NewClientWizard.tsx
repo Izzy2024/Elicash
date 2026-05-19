@@ -71,7 +71,7 @@ export default function NewClientWizard() {
       const client = await apiService.post('/api/clients', payload);
       if (client) {
         alert('Cliente guardado exitosamente!');
-        window.location.href = `/clientes/${client.id}`;
+        window.location.href = `/clientes/detalle?id=${client.id}`;
       }
     } catch (error: any) {
       alert(error.message || 'Error al guardar cliente');

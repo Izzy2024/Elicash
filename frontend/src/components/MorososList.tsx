@@ -175,7 +175,7 @@ export default function MorososList() {
                     onClick={() => window.open(`tel:${m.client.telefono}`)} 
                   />
                   <a 
-                    href={`/prestamos/${m.loan.id}`}
+                    href={`/prestamos/detalle?id=${m.loan.id}`}
                     className="flex items-center justify-center rounded-xl bg-slate-900 px-4 py-2 text-[11px] font-bold text-white press-96 transition-colors"
                   >
                     Ver Detalle

@@ -32,7 +32,7 @@ interface ClientCardProps {
 export const ClientCard: React.FC<ClientCardProps> = ({ client }) => {
   return (
     <a 
-      href={`/clientes/${client.id}`}
+      href={`/clientes/detalle?id=${client.id}`}
       className="bg-white p-4 rounded-2xl border border-slate-200 flex flex-col gap-4 transition-all press-96 subtle-surface hover:border-slate-300 sm:flex-row sm:items-center sm:justify-between"
     >
       <div className="flex min-w-0 items-center gap-4">
