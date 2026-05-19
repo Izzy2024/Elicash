@@ -1,0 +1,46 @@
+---
+import MainLayout from '../layouts/MainLayout.astro';
+---
+
+<MainLayout title="Inicio">
+  <div class="mx-auto flex h-full w-full max-w-5xl flex-col items-center justify-center gap-6 px-4 py-6 md:px-6 lg:px-8">
+    <div class="max-w-2xl text-center space-y-1">
+      <h2 style="font-family: 'DynaPuff', cursive;" class="text-xl font-bold text-primary sm:text-2xl lg:text-3xl">Bienvenido a EliCash</h2>
+      <p class="text-xs text-gray-500 sm:text-sm">Tu sistema de gestión de préstamos y cobros</p>
+    </div>
+
+    <div class="responsive-grid-2 w-full max-w-2xl">
+      <a href="/clientes/nuevo" class="bg-white p-4 rounded-xl shadow-[0_2px_10px_rgba(0,0,0,0.06)] border border-gray-100 flex flex-col items-center justify-center gap-2 hover:border-secondary hover:shadow-md transition-all min-h-28">
+        <div class="bg-blue-50 p-2.5 rounded-full text-blue-500">
+           <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+           </svg>
+        </div>
+        <span class="font-semibold text-xs text-center">Nuevo Cliente</span>
+      </a>
+
+      <a href="/prestamos/nuevo" class="bg-white p-4 rounded-xl shadow-[0_2px_10px_rgba(0,0,0,0.06)] border border-gray-100 flex flex-col items-center justify-center gap-2 hover:border-accent hover:shadow-md transition-all min-h-28">
+        <div class="bg-emerald-50 p-2.5 rounded-full text-emerald-500">
+           <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+           </svg>
+        </div>
+        <span class="font-semibold text-xs text-center">Nuevo Préstamo</span>
+      </a>
+    </div>
+
+    <div class="flex flex-col items-center gap-1.5 pt-2">
+      <div class="relative group">
+        <div class="absolute inset-0 rounded-[1.75rem] bg-gradient-to-b from-orange-100/75 via-white/50 to-rose-100/65 blur-xl transition-all duration-700 group-hover:blur-2xl"></div>
+        <div class="relative rounded-[1.75rem] border border-orange-100/80 bg-white/75 px-4 py-5 shadow-[0_18px_35px_rgba(233,108,56,0.16)] backdrop-blur-sm">
+          <img
+            src="/mascot-wallet.png"
+            alt="Mascota EliCash"
+            class="relative h-auto w-32 drop-shadow-[0_18px_25px_rgba(233,108,56,0.22)] transition-transform duration-500 ease-out group-hover:scale-105 sm:w-36"
+          />
+        </div>
+      </div>
+      <p class="text-xs text-gray-400 font-medium">Tu billetera digital de confianza</p>
+    </div>
+  </div>
+</MainLayout>

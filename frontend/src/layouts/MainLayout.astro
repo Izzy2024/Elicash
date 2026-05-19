@@ -1,0 +1,307 @@
+---
+import '../styles/global.css';
+const { title = "EliCash", requireAuth = true } = Astro.props;
+const apiUrl = import.meta.env.PUBLIC_API_URL || 'http://localhost:4000';
+---
+
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0" />
+  <meta name="generator" content={Astro.generator} />
+  <title>{title}</title>
+  <link rel="manifest" href="/manifest.json" />
+  <script is:inline>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js').then(registration => {
+          console.log('SW registered: ', registration);
+        }).catch(registrationError => {
+          console.log('SW registration failed: ', registrationError);
+        });
+      });
+    }
+  </script>
+</head>
+<body class="bg-background text-primary flex min-h-dvh flex-col overflow-x-hidden" data-require-auth={requireAuth} data-api-url={apiUrl}>
+  <div id="auth-splash" class="fixed inset-0 bg-primary z-[100] flex flex-col items-center justify-center text-white transition-opacity duration-300">
+    <div class="w-16 h-16 border-4 border-white/20 border-t-white rounded-full animate-spin mb-4"></div>
+    <h1 class="text-2xl font-bold">EliCash</h1>
+  </div>
+
+  <script>
+    import { apiService } from '../lib/api.service';
+    import { useAuthStore } from '../hooks/useAuthStore';
+
+    async function bootstrap() {
+      const splash = document.getElementById('auth-splash');
+      const requireAuth = document.body.dataset.requireAuth === 'true';
+      
+      try {
+        const user = await apiService.get('/api/auth/me');
+        if (user) {
+          useAuthStore.getState().setUser(user);
+          if (splash) {
+            splash.classList.add('opacity-0');
+            setTimeout(() => splash.remove(), 300);
+          }
+        } else if (requireAuth) {
+          window.location.href = '/login';
+        } else {
+          if (splash) splash.remove();
+        }
+      } catch (error) {
+        if (requireAuth) {
+          window.location.href = '/login';
+        } else {
+          if (splash) splash.remove();
+        }
+      }
+    }
+
+    bootstrap();
+  </script>
+  
+  <header class="sticky top-0 z-10 bg-primary/95 text-white shadow-md backdrop-blur">
+    <div class="app-shell flex items-center justify-between gap-4 py-4">
+      <div class="flex items-center gap-2">
+        <h1 class="text-lg font-bold md:text-xl">{title}</h1>
+      </div>
+      {requireAuth && (
+        <div class="flex items-center gap-3 md:gap-4">
+          <a href="/configuracion" class="touch-target flex items-center justify-center text-white/70 transition-colors hover:text-white">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+          </a>
+          <button id="logout-btn" class="touch-target text-xs font-bold uppercase tracking-tight text-white/50 transition-colors hover:text-white md:text-sm">
+            Salir
+          </button>
+        </div>
+      )}
+    </div>
+  </header>
+
+  <main class="flex-1 overflow-y-auto pb-[calc(6.5rem+env(safe-area-inset-bottom))] pt-4 md:pb-[calc(7rem+env(safe-area-inset-bottom))] md:pt-6">
+    <div class="app-shell">
+    <slot />
+    </div>
+  </main>
+
+  <!-- Banner de instalación: Android / Desktop (beforeinstallprompt) -->
+  <div id="pwa-install-prompt" class="hidden fixed bottom-24 left-4 right-4 z-20 animate-fade-in">
+    <div class="bg-primary text-white rounded-2xl shadow-xl border border-white/10 p-4 backdrop-blur-sm">
+      <div class="flex items-start gap-3">
+        <div class="shrink-0 w-10 h-10 bg-emerald-500/20 rounded-xl flex items-center justify-center">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-emerald-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v12m0 0l-3-3m3 3l3-3M4 20h16" />
+          </svg>
+        </div>
+        <div class="flex-1 min-w-0">
+          <p class="text-sm font-semibold leading-tight">Instala EliCash en tu dispositivo</p>
+          <p class="text-xs text-white/70 mt-0.5">Acceso directo desde tu pantalla de inicio, sin abrir el navegador.</p>
+        </div>
+        <button id="pwa-dismiss-btn" class="shrink-0 text-white/40 hover:text-white/70 transition-colors" aria-label="Cerrar">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+      <button id="pwa-install-btn" class="mt-3 w-full bg-emerald-500 hover:bg-emerald-400 active:bg-emerald-600 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors flex items-center justify-center gap-2">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+        </svg>
+        Instalar aplicación
+      </button>
+    </div>
+  </div>
+
+  <!-- Banner iOS: instrucciones manuales (Safari no tiene beforeinstallprompt) -->
+  <div id="pwa-ios-prompt" class="hidden fixed bottom-24 left-4 right-4 z-20">
+    <div class="bg-primary text-white rounded-2xl shadow-xl border border-white/10 p-4 backdrop-blur-sm">
+      <div class="flex items-start justify-between gap-2 mb-2">
+        <p class="text-sm font-semibold">Instala EliCash en tu iPhone / iPad</p>
+        <button id="pwa-ios-dismiss-btn" class="shrink-0 text-white/40 hover:text-white/70 transition-colors" aria-label="Cerrar">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+      <ol class="text-xs text-white/80 space-y-1 list-none">
+        <li class="flex items-center gap-2">
+          <span class="shrink-0 w-5 h-5 bg-white/10 rounded-full flex items-center justify-center text-[10px] font-bold">1</span>
+          Toca el botón Compartir
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-blue-300 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+          </svg>
+        </li>
+        <li class="flex items-center gap-2">
+          <span class="shrink-0 w-5 h-5 bg-white/10 rounded-full flex items-center justify-center text-[10px] font-bold">2</span>
+          Selecciona <strong class="text-white">"Agregar a pantalla de inicio"</strong>
+        </li>
+        <li class="flex items-center gap-2">
+          <span class="shrink-0 w-5 h-5 bg-white/10 rounded-full flex items-center justify-center text-[10px] font-bold">3</span>
+          Toca <strong class="text-white">"Agregar"</strong> — listo ✓
+        </li>
+      </ol>
+    </div>
+  </div>
+
+  <nav class="fixed inset-x-0 bottom-0 z-10 flex justify-around border-t border-gray-200 bg-surface/95 p-3 pb-safe shadow-[0_-2px_10px_rgba(0,0,0,0.05)] backdrop-blur md:inset-x-4 md:bottom-4 md:mx-auto md:max-w-5xl md:rounded-2xl md:border">
+    <!-- Inicio -->
+    <a href="/" class={`flex flex-col items-center justify-center min-w-[56px] min-h-[56px] transition-colors ${Astro.url.pathname === '/' ? 'text-secondary' : 'text-gray-500 hover:text-secondary active:text-secondary'}`}>
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+      </svg>
+      <span class="text-xs font-medium">Inicio</span>
+    </a>
+    
+    <!-- Clientes -->
+    <a href="/clientes" class={`flex flex-col items-center justify-center min-w-[56px] min-h-[56px] transition-colors ${Astro.url.pathname.startsWith('/clientes') ? 'text-secondary' : 'text-gray-500 hover:text-secondary active:text-secondary'}`}>
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+      </svg>
+      <span class="text-xs font-medium">Clientes</span>
+    </a>
+
+    <!-- Cobros -->
+    <a href="/cobros" class={`flex flex-col items-center justify-center min-w-[56px] min-h-[56px] transition-colors ${Astro.url.pathname.startsWith('/cobros') ? 'text-secondary' : 'text-gray-500 hover:text-secondary active:text-secondary'}`}>
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+      </svg>
+      <span class="text-xs font-medium">Cobros</span>
+    </a>
+
+    <!-- Morosos -->
+    <a href="/mora" class={`flex flex-col items-center justify-center min-w-[56px] min-h-[56px] transition-colors ${Astro.url.pathname.startsWith('/mora') ? 'text-secondary' : 'text-gray-500 hover:text-secondary active:text-secondary'}`}>
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+      </svg>
+      <span class="text-xs font-medium">Morosos</span>
+    </a>
+
+    <!-- Reportes -->
+    <a href="/dashboard" class={`flex flex-col items-center justify-center min-w-[56px] min-h-[56px] transition-colors ${Astro.url.pathname.startsWith('/dashboard') ? 'text-secondary' : 'text-gray-500 hover:text-secondary active:text-secondary'}`}>
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+      </svg>
+      <span class="text-xs font-medium">Reportes</span>
+    </a>
+  </nav>
+
+  {requireAuth && (
+    <script is:inline>
+      document.getElementById('logout-btn').addEventListener('click', async function() {
+        const apiBase = document.body.dataset.apiUrl || 'http://localhost:4000';
+        try {
+          await fetch(`${apiBase}/api/auth/logout`, {
+            method: 'POST',
+            credentials: 'include'
+          });
+        } catch (error) {
+          console.error('Logout request failed:', error);
+        } finally {
+          localStorage.removeItem('elicash_user');
+          window.location.href = '/login';
+        }
+      });
+    </script>
+  )}
+
+  <script is:inline>
+    (function() {
+      var DISMISSED_KEY = 'elicash_pwa_dismissed_at';
+      var INSTALLED_KEY = 'elicash_pwa_installed';
+      var SNOOZE_DAYS = 7; // vuelve a preguntar en 7 días si dijo "Luego"
+
+      function isStandalone() {
+        return window.matchMedia('(display-mode: standalone)').matches
+          || window.navigator.standalone === true;
+      }
+
+      function isInstalled() {
+        return localStorage.getItem(INSTALLED_KEY) === '1';
+      }
+
+      function isSnoozed() {
+        var ts = localStorage.getItem(DISMISSED_KEY);
+        if (!ts) return false;
+        var diff = Date.now() - parseInt(ts, 10);
+        return diff < SNOOZE_DAYS * 24 * 60 * 60 * 1000;
+      }
+
+      function isIOS() {
+        return /iphone|ipad|ipod/i.test(navigator.userAgent) && !window.MSStream;
+      }
+
+      // No mostrar nada si ya está instalada o en modo standalone
+      if (isStandalone() || isInstalled()) return;
+
+      // ── iOS: mostrar instrucciones manuales ────────────────────────────────
+      if (isIOS()) {
+        if (isSnoozed()) return;
+        var iosPrompt = document.getElementById('pwa-ios-prompt');
+        var iosDismiss = document.getElementById('pwa-ios-dismiss-btn');
+        if (!iosPrompt) return;
+
+        // Pequeño delay para que no interrumpa la carga
+        setTimeout(function() { iosPrompt.classList.remove('hidden'); }, 2500);
+
+        if (iosDismiss) {
+          iosDismiss.addEventListener('click', function() {
+            localStorage.setItem(DISMISSED_KEY, String(Date.now()));
+            iosPrompt.classList.add('hidden');
+          });
+        }
+        return;
+      }
+
+      // ── Android / Desktop: beforeinstallprompt ────────────────────────────
+      var deferredPrompt = null;
+      var promptContainer = document.getElementById('pwa-install-prompt');
+      var installButton = document.getElementById('pwa-install-btn');
+      var dismissButton = document.getElementById('pwa-dismiss-btn');
+
+      if (!promptContainer || !installButton || !dismissButton) return;
+
+      window.addEventListener('beforeinstallprompt', function(event) {
+        event.preventDefault();
+        deferredPrompt = event;
+        if (!isSnoozed()) {
+          setTimeout(function() { promptContainer.classList.remove('hidden'); }, 1500);
+        }
+      });
+
+      installButton.addEventListener('click', async function() {
+        if (!deferredPrompt) return;
+        deferredPrompt.prompt();
+        var choice = await deferredPrompt.userChoice;
+        deferredPrompt = null;
+        promptContainer.classList.add('hidden');
+        if (choice.outcome === 'accepted') {
+          localStorage.setItem(INSTALLED_KEY, '1');
+          localStorage.removeItem(DISMISSED_KEY);
+        } else {
+          // Rechazó en el diálogo del sistema → esperar 7 días
+          localStorage.setItem(DISMISSED_KEY, String(Date.now()));
+        }
+      });
+
+      dismissButton.addEventListener('click', function() {
+        localStorage.setItem(DISMISSED_KEY, String(Date.now()));
+        promptContainer.classList.add('hidden');
+      });
+
+      // El navegador confirma que se instaló (sin haber pasado por el botón)
+      window.addEventListener('appinstalled', function() {
+        localStorage.setItem(INSTALLED_KEY, '1');
+        localStorage.removeItem(DISMISSED_KEY);
+        promptContainer.classList.add('hidden');
+      });
+    })();
+  </script>
+
+</body>
+</html>

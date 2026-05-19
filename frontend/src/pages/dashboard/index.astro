@@ -1,0 +1,21 @@
+---
+import MainLayout from '../../layouts/MainLayout.astro';
+import DashboardData from '../../components/DashboardData';
+---
+
+<MainLayout title="Dashboard">
+  <div class="space-y-6">
+    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <h2 class="text-2xl font-bold text-primary">Resumen</h2>
+      <select class="bg-white border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-secondary shadow-sm sm:self-start">
+        <option>Hoy</option>
+        <option>Esta semana</option>
+        <option>Este mes</option>
+      </select>
+    </div>
+
+    <!-- React Island Dashboard -->
+    <DashboardData client:load />
+
+  </div>
+</MainLayout>

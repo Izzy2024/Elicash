@@ -1,0 +1,104 @@
+@import url('https://fonts.googleapis.com/css2?family=DynaPuff:wght@400;500;600;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #0F172A; /* Slate 900 */
+  --color-secondary: #3B82F6; /* Blue 500 */
+  --color-accent: #10B981; /* Emerald 500 */
+  --color-danger: #EF4444; /* Red 500 */
+  --color-warning: #F59E0B; /* Amber 500 */
+  --color-background: #F8FAFC; /* Slate 50 */
+  --color-surface: #FFFFFF;
+  --text-base: 1.125rem; /* 18px */
+}
+
+body {
+  font-family: 'Inter', system-ui, sans-serif;
+  background-color: var(--color-background);
+  color: var(--color-primary);
+  margin: 0;
+  padding: 0;
+  -webkit-font-smoothing: antialiased;
+}
+
+html,
+body {
+  min-height: 100%;
+  overflow-x: hidden;
+}
+
+/* Títulos con DynaPuff - !important para overridear Tailwind */
+h1, h2, h3, h4, .font-display {
+  font-family: 'DynaPuff', cursive !important;
+}
+
+@layer utilities {
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+  }
+  .press-96 {
+    @apply active:scale-[0.96] transition-transform duration-100;
+  }
+  .subtle-surface {
+    box-shadow: 0 2px 10px rgba(0,0,0,0.06);
+  }
+  .app-shell {
+    width: 100%;
+    max-width: 96rem;
+    margin-left: auto;
+    margin-right: auto;
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+  @media (min-width: 768px) {
+    .app-shell {
+      padding-left: 1.5rem;
+      padding-right: 1.5rem;
+    }
+  }
+  @media (min-width: 1024px) {
+    .app-shell {
+      padding-left: 2rem;
+      padding-right: 2rem;
+    }
+  }
+  .touch-target {
+    min-height: 2.75rem;
+    min-width: 2.75rem;
+  }
+  .responsive-grid-2 {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1rem;
+  }
+  @media (min-width: 640px) {
+    .responsive-grid-2 {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+  .responsive-grid-3 {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1rem;
+  }
+  @media (min-width: 768px) {
+    .responsive-grid-3 {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+  .responsive-grid-4 {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1rem;
+  }
+  @media (min-width: 640px) {
+    .responsive-grid-4 {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+  @media (min-width: 1280px) {
+    .responsive-grid-4 {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+  }
+}
