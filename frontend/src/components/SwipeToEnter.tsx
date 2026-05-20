@@ -20,7 +20,11 @@ export default function SwipeToEnter({ onSwipe, disabled = false, loading = fals
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
     if (disabled || loading) return;
     e.preventDefault();
-    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch (err) {
+      console.error('Failed to set pointer capture:', err);
+    }
     startXRef.current = e.clientX - dragX;
     setIsDragging(true);
   }, [disabled, loading, dragX]);
@@ -35,9 +39,14 @@ export default function SwipeToEnter({ onSwipe, disabled = false, loading = fals
     setDragX(newX);
   }, [isDragging, disabled]);
 
-  const handlePointerUp = useCallback(() => {
+  const handlePointerUp = useCallback((e: React.PointerEvent) => {
     if (!isDragging || disabled) return;
     setIsDragging(false);
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    } catch (err) {
+      // Ignore if pointer capture release fails
+    }
     const track = trackRef.current;
     if (!track) return;
     const maxX = track.offsetWidth - THUMB_SIZE - PADDING * 2;
@@ -99,11 +108,11 @@ export default function SwipeToEnter({ onSwipe, disabled = false, loading = fals
         onPointerCancel={handlePointerUp}
       >
         {loading ? (
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <svg style={{ pointerEvents: 'none' }} width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
           </svg>
         ) : (
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <svg style={{ pointerEvents: 'none' }} width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <path d="M13 7l5 5m0 0l-5 5m5-5H6" />
           </svg>
         )}
