@@ -9,10 +9,13 @@ export default function NewLoanWizard() {
     monto: 1000,
     tasa_interes: 10,
     tipo_interes: 'simple',
+    tipo_prestamo: 'cuotas',
     frecuencia: 'mensual',
     num_cuotas: 6,
     fecha_inicio: new Date().toISOString().split('T')[0]
   });
+
+  const esSinPlazo = formData.tipo_prestamo === 'sin_plazo';
 
   const [simulation, setSimulation] = useState<any[]>([]);
 
@@ -32,17 +35,24 @@ export default function NewLoanWizard() {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
+  const buildPayload = (includeClient = false) => {
+    const base: Record<string, unknown> = {
+      monto: Number(formData.monto),
+      tasa_interes: Number(formData.tasa_interes),
+      tipo_interes: formData.tipo_interes,
+      tipo_prestamo: formData.tipo_prestamo,
+      frecuencia: formData.frecuencia,
+      fecha_inicio: new Date(formData.fecha_inicio).toISOString(),
+    };
+    if (!esSinPlazo) base.num_cuotas = Number(formData.num_cuotas);
+    if (includeClient) base.client_id = formData.client_id;
+    return base;
+  };
+
   const simulate = async () => {
     setLoading(true);
     try {
-      const payload = {
-        ...formData,
-        monto: Number(formData.monto),
-        tasa_interes: Number(formData.tasa_interes),
-        num_cuotas: Number(formData.num_cuotas),
-        fecha_inicio: new Date(formData.fecha_inicio)
-      };
-      const data = await apiService.post('/api/loans/simulate', payload);
+      const data = await apiService.post('/api/loans/simulate', buildPayload());
       setSimulation(data);
     } catch (err: any) {
       alert(err.message || 'Error en simulación');
@@ -57,18 +67,12 @@ export default function NewLoanWizard() {
       alert('Por favor seleccione un cliente');
       return;
     }
-    
+
     setLoading(true);
     try {
-      const payload = {
-        ...formData,
-        monto: Number(formData.monto),
-        tasa_interes: Number(formData.tasa_interes),
-        num_cuotas: Number(formData.num_cuotas),
-        fecha_inicio: new Date(formData.fecha_inicio)
-      };
+      const payload = buildPayload(true);
       const loan = await apiService.post('/api/loans', payload);
-      if (loan) {
+      if (loan?.id) {
         alert('Préstamo originado exitosamente.');
         window.location.href = `/prestamos/detalle?id=${loan.id}`;
       }
@@ -104,6 +108,17 @@ export default function NewLoanWizard() {
           </div>
         </div>
 
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1">Tipo de Préstamo</label>
+          <select name="tipo_prestamo" value={formData.tipo_prestamo} onChange={handleChange} className="w-full border border-gray-300 rounded-xl px-4 py-3 bg-white">
+            <option value="cuotas">Cuotas fijas</option>
+            <option value="sin_plazo">Sin plazo (pagos libres)</option>
+          </select>
+          {esSinPlazo && (
+            <p className="text-xs text-slate-400 mt-1">Cada pago descuenta primero intereses y luego capital. No hay cuotas fijas.</p>
+          )}
+        </div>
+
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">Frecuencia</label>
@@ -114,10 +129,12 @@ export default function NewLoanWizard() {
               <option value="mensual">Mensual</option>
             </select>
           </div>
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Cuotas</label>
-            <input name="num_cuotas" value={formData.num_cuotas} onChange={handleChange} type="number" className="w-full border border-gray-300 rounded-xl px-4 py-3" />
-          </div>
+          {!esSinPlazo && (
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Cuotas</label>
+              <input name="num_cuotas" value={formData.num_cuotas} onChange={handleChange} type="number" min="1" className="w-full border border-gray-300 rounded-xl px-4 py-3" />
+            </div>
+          )}
         </div>
 
         <div>
@@ -131,13 +148,16 @@ export default function NewLoanWizard() {
 
         {simulation.length > 0 && (
           <div className="mt-6 border-t border-gray-100 pt-4 animate-in fade-in">
-             <h4 className="font-bold text-slate-800 mb-3">Tabla de Cuotas Prevista</h4>
+             <h4 className="font-bold text-slate-800 mb-3">
+               {esSinPlazo ? 'Proyección de períodos (sin plazo)' : 'Tabla de Cuotas Prevista'}
+             </h4>
              <div className="max-h-40 overflow-y-auto space-y-2 pr-2">
                {simulation.map((s) => (
                   <div key={s.numero} className="flex flex-col gap-1 bg-slate-50 p-2 rounded text-sm border border-slate-100 sm:flex-row sm:items-center sm:justify-between">
                    <span className="font-medium text-slate-500">#{s.numero}</span>
-                   <span className="text-slate-600">{new Date(s.fecha).toLocaleDateString()}</span>
-                   <span className="font-bold text-slate-800">${s.cuota}</span>
+                   <span className="text-slate-600">{new Date(s.fecha_vencimiento).toLocaleDateString()}</span>
+                   <span className="text-slate-500 text-xs">Int: ${s.monto_interes}</span>
+                   <span className="font-bold text-slate-800">${s.monto_cuota}</span>
                  </div>
                ))}
              </div>
