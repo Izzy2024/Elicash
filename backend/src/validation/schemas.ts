@@ -50,7 +50,7 @@ export const createClientSchema = z.object({
   guarantors: z.array(guarantorSchema).optional()
 });
 
-export const loanInputSchema = z.object({
+const loanBaseSchema = z.object({
   client_id: nonEmptyString,
   monto: z.number().positive(),
   tasa_interes: z.number().nonnegative(),
@@ -59,10 +59,15 @@ export const loanInputSchema = z.object({
   frecuencia: z.enum(['diaria', 'semanal', 'quincenal', 'mensual']),
   num_cuotas: z.number().int().positive().optional(),
   fecha_inicio: z.iso.datetime()
-}).refine(
-  (d) => d.tipo_prestamo === 'sin_plazo' || (d.num_cuotas !== undefined && d.num_cuotas > 0),
-  { message: 'num_cuotas es requerido para préstamos con plazo fijo', path: ['num_cuotas'] }
-);
+});
+
+const cuotasRefine = (d: { tipo_prestamo?: string; num_cuotas?: number | undefined }) =>
+  d.tipo_prestamo === 'sin_plazo' || (d.num_cuotas !== undefined && d.num_cuotas > 0);
+const cuotasRefineMsg = { message: 'num_cuotas es requerido para préstamos con plazo fijo', path: ['num_cuotas'] };
+
+export const loanInputSchema = loanBaseSchema.refine(cuotasRefine, cuotasRefineMsg);
+
+export const loanSimulateSchema = loanBaseSchema.omit({ client_id: true }).refine(cuotasRefine, cuotasRefineMsg);
 
 export const registerPaymentSchema = z.object({
   installment_id: nonEmptyString,

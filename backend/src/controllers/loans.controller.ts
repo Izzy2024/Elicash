@@ -2,7 +2,7 @@ import { Request, Response } from 'express';
 import { prisma } from '../lib/prisma';
 import { LoanCalculatorService } from '../services/loan.service';
 import { ScoreService } from '../services/score.service';
-import { loanInputSchema } from '../validation/schemas';
+import { loanInputSchema, loanSimulateSchema } from '../validation/schemas';
 import { logger } from '../lib/logger';
 
 export const createLoan = async (req: Request, res: Response) => {
@@ -69,7 +69,7 @@ export const createLoan = async (req: Request, res: Response) => {
 export const simulateLoan = async (req: Request, res: Response) => {
   try {
     const { monto, tasa_interes, tipo_interes, tipo_prestamo, frecuencia, num_cuotas, fecha_inicio } =
-      loanInputSchema.omit({ client_id: true }).parse(req.body);
+      loanSimulateSchema.parse(req.body);
 
     const isSinPlazo = tipo_prestamo === 'sin_plazo';
 
