@@ -14,99 +14,117 @@ export default function SwipeToEnter({ onSwipe, disabled = false, loading = fals
   const thumbRef = useRef<HTMLDivElement>(null);
   const startXRef = useRef(0);
   const dragXRef = useRef(0);
+  const disabledRef = useRef(disabled);
+  const loadingRef = useRef(loading);
+  const onSwipeRef = useRef(onSwipe);
+
+  useEffect(() => { disabledRef.current = disabled; }, [disabled]);
+  useEffect(() => { loadingRef.current = loading; }, [loading]);
+  useEffect(() => { onSwipeRef.current = onSwipe; }, [onSwipe]);
 
   const THUMB_SIZE = 52;
   const PADDING = 6;
   const THRESHOLD = 0.75;
 
-  const getMaxX = useCallback(() => {
-    if (!trackRef.current) return 0;
+  const getMaxX = () => {
+    if (!trackRef.current) return 200;
     return trackRef.current.offsetWidth - THUMB_SIZE - PADDING * 2;
-  }, []);
+  };
 
-  const clampX = useCallback((x: number) => {
-    return Math.max(0, Math.min(getMaxX(), x));
-  }, [getMaxX]);
-
-  const triggerSuccess = useCallback(() => {
-    setIsSuccess(true);
-    onSwipe();
-    setTimeout(() => {
-      setIsSuccess(false);
-      dragXRef.current = 0;
-      setDragX(0);
-    }, 600);
-  }, [onSwipe]);
-
-  const finishDrag = useCallback(() => {
-    setIsDragging(false);
-    if (dragXRef.current >= getMaxX() * THRESHOLD) {
-      triggerSuccess();
-    } else {
-      dragXRef.current = 0;
-      setDragX(0);
-    }
-  }, [getMaxX, triggerSuccess]);
-
-  const updatePosition = useCallback((clientX: number) => {
-    const newX = clampX(clientX - startXRef.current);
-    dragXRef.current = newX;
-    setDragX(newX);
-  }, [clampX]);
-
-  // Touch events — attached directly to document while dragging
+  // All touch/mouse logic wired via native DOM listeners (bypasses React passive listeners on iOS)
   useEffect(() => {
-    if (!isDragging) return;
+    const thumb = thumbRef.current;
+    if (!thumb) return;
+
+    let dragging = false;
+
+    const updatePos = (clientX: number) => {
+      const maxX = getMaxX();
+      const newX = Math.max(0, Math.min(maxX, clientX - startXRef.current));
+      dragXRef.current = newX;
+      setDragX(newX);
+    };
+
+    const finish = () => {
+      if (!dragging) return;
+      dragging = false;
+      setIsDragging(false);
+      const maxX = getMaxX();
+      if (dragXRef.current >= maxX * THRESHOLD) {
+        setIsSuccess(true);
+        onSwipeRef.current();
+        setTimeout(() => {
+          setIsSuccess(false);
+          dragXRef.current = 0;
+          setDragX(0);
+        }, 600);
+      } else {
+        dragXRef.current = 0;
+        setDragX(0);
+      }
+    };
+
+    // ── Touch handlers (non-passive so preventDefault works on iOS) ──
+    const onTouchStart = (e: TouchEvent) => {
+      if (disabledRef.current || loadingRef.current) return;
+      e.preventDefault();
+      e.stopPropagation();
+      dragging = true;
+      const touch = e.touches[0];
+      startXRef.current = touch.clientX - dragXRef.current;
+      setIsDragging(true);
+    };
 
     const onTouchMove = (e: TouchEvent) => {
+      if (!dragging) return;
       e.preventDefault();
+      e.stopPropagation();
       const touch = e.touches[0];
-      if (touch) updatePosition(touch.clientX);
+      if (touch) updatePos(touch.clientX);
     };
 
-    const onTouchEnd = () => finishDrag();
-
-    const onMouseMove = (e: MouseEvent) => {
+    const onTouchEnd = (e: TouchEvent) => {
+      if (!dragging) return;
       e.preventDefault();
-      updatePosition(e.clientX);
+      finish();
     };
 
-    const onMouseUp = () => finishDrag();
+    // ── Mouse handlers (desktop) ──
+    const onMouseDown = (e: MouseEvent) => {
+      if (disabledRef.current || loadingRef.current) return;
+      e.preventDefault();
+      dragging = true;
+      startXRef.current = e.clientX - dragXRef.current;
+      setIsDragging(true);
 
-    document.addEventListener('touchmove', onTouchMove, { passive: false });
-    document.addEventListener('touchend', onTouchEnd);
-    document.addEventListener('touchcancel', onTouchEnd);
-    document.addEventListener('mousemove', onMouseMove);
-    document.addEventListener('mouseup', onMouseUp);
+      const onMouseMove = (ev: MouseEvent) => { if (dragging) updatePos(ev.clientX); };
+      const onMouseUp = () => {
+        finish();
+        document.removeEventListener('mousemove', onMouseMove);
+        document.removeEventListener('mouseup', onMouseUp);
+      };
+      document.addEventListener('mousemove', onMouseMove);
+      document.addEventListener('mouseup', onMouseUp);
+    };
+
+    // Attach to thumb — non-passive is critical for iOS
+    thumb.addEventListener('touchstart', onTouchStart, { passive: false });
+    thumb.addEventListener('touchmove', onTouchMove, { passive: false });
+    thumb.addEventListener('touchend', onTouchEnd, { passive: false });
+    thumb.addEventListener('touchcancel', onTouchEnd, { passive: false });
+    thumb.addEventListener('mousedown', onMouseDown);
 
     return () => {
-      document.removeEventListener('touchmove', onTouchMove);
-      document.removeEventListener('touchend', onTouchEnd);
-      document.removeEventListener('touchcancel', onTouchEnd);
-      document.removeEventListener('mousemove', onMouseMove);
-      document.removeEventListener('mouseup', onMouseUp);
+      thumb.removeEventListener('touchstart', onTouchStart);
+      thumb.removeEventListener('touchmove', onTouchMove);
+      thumb.removeEventListener('touchend', onTouchEnd);
+      thumb.removeEventListener('touchcancel', onTouchEnd);
+      thumb.removeEventListener('mousedown', onMouseDown);
     };
-  }, [isDragging, updatePosition, finishDrag]);
-
-  const startDrag = useCallback((clientX: number) => {
-    if (disabled || loading) return;
-    startXRef.current = clientX - dragXRef.current;
-    setIsDragging(true);
-  }, [disabled, loading]);
-
-  const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    e.preventDefault();
-    const touch = e.touches[0];
-    if (touch) startDrag(touch.clientX);
-  }, [startDrag]);
-
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    startDrag(e.clientX);
-  }, [startDrag]);
+  }, []); // empty deps — refs keep values current
 
   const fillPercent = trackRef.current
-    ? (dragX / getMaxX()) * 100
+    ? (dragX / (trackRef.current.offsetWidth - THUMB_SIZE - PADDING * 2)) * 100
     : 0;
 
   return (
@@ -122,9 +140,7 @@ export default function SwipeToEnter({ onSwipe, disabled = false, loading = fals
       <span
         style={{
           position: 'absolute',
-          left: 0,
-          right: 0,
-          top: '50%',
+          left: 0, right: 0, top: '50%',
           transform: 'translateY(-50%)',
           textAlign: 'center',
           fontSize: '0.8125rem',
@@ -146,8 +162,6 @@ export default function SwipeToEnter({ onSwipe, disabled = false, loading = fals
           top: PADDING,
           ...(isDragging ? {} : { transition: isSuccess ? 'none' : 'transform 0.3s ease-out' }),
         }}
-        onTouchStart={handleTouchStart}
-        onMouseDown={handleMouseDown}
       >
         {loading ? (
           <svg style={{ pointerEvents: 'none' }} width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
