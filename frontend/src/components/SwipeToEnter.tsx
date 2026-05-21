@@ -11,108 +11,102 @@ export default function SwipeToEnter({ onSwipe, disabled = false, loading = fals
   const [isDragging, setIsDragging] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const trackRef = useRef<HTMLDivElement>(null);
+  const thumbRef = useRef<HTMLDivElement>(null);
   const startXRef = useRef(0);
   const dragXRef = useRef(0);
-  const activePointerIdRef = useRef<number | null>(null);
 
   const THUMB_SIZE = 52;
   const PADDING = 6;
   const THRESHOLD = 0.75;
 
-  const updateDragPosition = useCallback((clientX: number) => {
-    const track = trackRef.current;
-    if (!track) return;
-    const maxX = track.offsetWidth - THUMB_SIZE - PADDING * 2;
-    const newX = Math.max(0, Math.min(maxX, clientX - startXRef.current));
-    dragXRef.current = newX;
-    setDragX(newX);
+  const getMaxX = useCallback(() => {
+    if (!trackRef.current) return 0;
+    return trackRef.current.offsetWidth - THUMB_SIZE - PADDING * 2;
   }, []);
+
+  const clampX = useCallback((x: number) => {
+    return Math.max(0, Math.min(getMaxX(), x));
+  }, [getMaxX]);
+
+  const triggerSuccess = useCallback(() => {
+    setIsSuccess(true);
+    onSwipe();
+    setTimeout(() => {
+      setIsSuccess(false);
+      dragXRef.current = 0;
+      setDragX(0);
+    }, 600);
+  }, [onSwipe]);
 
   const finishDrag = useCallback(() => {
     setIsDragging(false);
-    activePointerIdRef.current = null;
-    const track = trackRef.current;
-    if (!track) return;
-    const maxX = track.offsetWidth - THUMB_SIZE - PADDING * 2;
-    if (dragXRef.current >= maxX * THRESHOLD) {
-      setIsSuccess(true);
-      onSwipe();
-      setTimeout(() => {
-        setIsSuccess(false);
-        dragXRef.current = 0;
-        setDragX(0);
-      }, 600);
+    if (dragXRef.current >= getMaxX() * THRESHOLD) {
+      triggerSuccess();
     } else {
       dragXRef.current = 0;
       setDragX(0);
     }
-  }, [onSwipe]);
+  }, [getMaxX, triggerSuccess]);
 
-  const handlePointerDown = useCallback((e: React.PointerEvent) => {
+  const updatePosition = useCallback((clientX: number) => {
+    const newX = clampX(clientX - startXRef.current);
+    dragXRef.current = newX;
+    setDragX(newX);
+  }, [clampX]);
+
+  // Touch events — attached directly to document while dragging
+  useEffect(() => {
+    if (!isDragging) return;
+
+    const onTouchMove = (e: TouchEvent) => {
+      e.preventDefault();
+      const touch = e.touches[0];
+      if (touch) updatePosition(touch.clientX);
+    };
+
+    const onTouchEnd = () => finishDrag();
+
+    const onMouseMove = (e: MouseEvent) => {
+      e.preventDefault();
+      updatePosition(e.clientX);
+    };
+
+    const onMouseUp = () => finishDrag();
+
+    document.addEventListener('touchmove', onTouchMove, { passive: false });
+    document.addEventListener('touchend', onTouchEnd);
+    document.addEventListener('touchcancel', onTouchEnd);
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+
+    return () => {
+      document.removeEventListener('touchmove', onTouchMove);
+      document.removeEventListener('touchend', onTouchEnd);
+      document.removeEventListener('touchcancel', onTouchEnd);
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+    };
+  }, [isDragging, updatePosition, finishDrag]);
+
+  const startDrag = useCallback((clientX: number) => {
     if (disabled || loading) return;
-    e.preventDefault();
-    activePointerIdRef.current = e.pointerId;
-    try {
-      e.currentTarget.setPointerCapture(e.pointerId);
-    } catch (err) {
-      console.error('Failed to set pointer capture:', err);
-    }
-    startXRef.current = e.clientX - dragXRef.current;
+    startXRef.current = clientX - dragXRef.current;
     setIsDragging(true);
   }, [disabled, loading]);
 
-  useEffect(() => {
-    if (!isDragging || disabled) {
-      return;
-    }
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    e.preventDefault();
+    const touch = e.touches[0];
+    if (touch) startDrag(touch.clientX);
+  }, [startDrag]);
 
-    const handlePointerMove = (event: PointerEvent) => {
-      if (activePointerIdRef.current !== null && event.pointerId !== activePointerIdRef.current) {
-        return;
-      }
-
-      event.preventDefault();
-      updateDragPosition(event.clientX);
-    };
-
-    const handlePointerUp = (event: PointerEvent) => {
-      if (activePointerIdRef.current !== null && event.pointerId !== activePointerIdRef.current) {
-        return;
-      }
-
-      finishDrag();
-    };
-
-    const handleTouchMove = (event: TouchEvent) => {
-      const touch = event.touches[0];
-      if (!touch) return;
-      event.preventDefault();
-      updateDragPosition(touch.clientX);
-    };
-
-    const handleTouchEnd = () => {
-      finishDrag();
-    };
-
-    window.addEventListener('pointermove', handlePointerMove, { passive: false });
-    window.addEventListener('pointerup', handlePointerUp);
-    window.addEventListener('pointercancel', handlePointerUp);
-    window.addEventListener('touchmove', handleTouchMove, { passive: false });
-    window.addEventListener('touchend', handleTouchEnd);
-    window.addEventListener('touchcancel', handleTouchEnd);
-
-    return () => {
-      window.removeEventListener('pointermove', handlePointerMove);
-      window.removeEventListener('pointerup', handlePointerUp);
-      window.removeEventListener('pointercancel', handlePointerUp);
-      window.removeEventListener('touchmove', handleTouchMove);
-      window.removeEventListener('touchend', handleTouchEnd);
-      window.removeEventListener('touchcancel', handleTouchEnd);
-    };
-  }, [isDragging, disabled, finishDrag, updateDragPosition]);
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    startDrag(e.clientX);
+  }, [startDrag]);
 
   const fillPercent = trackRef.current
-    ? (dragX / (trackRef.current.offsetWidth - THUMB_SIZE - PADDING * 2)) * 100
+    ? (dragX / getMaxX()) * 100
     : 0;
 
   return (
@@ -144,6 +138,7 @@ export default function SwipeToEnter({ onSwipe, disabled = false, loading = fals
         {loading ? 'INGRESANDO...' : 'DESLIZA PARA ENTRAR →'}
       </span>
       <div
+        ref={thumbRef}
         className={`login-swipe-thumb ${isSuccess ? 'login-swipe-thumb-success' : ''} ${loading ? 'login-pulse' : ''}`}
         style={{
           left: PADDING,
@@ -151,7 +146,8 @@ export default function SwipeToEnter({ onSwipe, disabled = false, loading = fals
           top: PADDING,
           ...(isDragging ? {} : { transition: isSuccess ? 'none' : 'transform 0.3s ease-out' }),
         }}
-        onPointerDown={handlePointerDown}
+        onTouchStart={handleTouchStart}
+        onMouseDown={handleMouseDown}
       >
         {loading ? (
           <svg style={{ pointerEvents: 'none' }} width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
