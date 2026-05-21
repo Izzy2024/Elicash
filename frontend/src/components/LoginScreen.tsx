@@ -31,6 +31,9 @@ export default function LoginScreen() {
       const data = await apiService.post('/api/auth/login', { email, password });
 
       if (data && data.user) {
+        if (data.token) {
+          localStorage.setItem('elicash_token', data.token);
+        }
         setUser(data.user);
         window.location.href = '/';
       }

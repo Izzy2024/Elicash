@@ -32,35 +32,37 @@ export const useAuthStore = create<AuthState>((set) => ({
   setUser: (user) => {
     if (user) {
       localStorage.setItem('elicash_user', JSON.stringify(user));
-      set({ 
-        user, 
-        role: user.role, 
+      set({
+        user,
+        role: user.role,
         tenantId: user.tenantId,
         currency: user.currency || 'USD',
         symbol: user.symbol || '$',
-        isAuthenticated: true 
+        isAuthenticated: true
       });
     } else {
       localStorage.removeItem('elicash_user');
-      set({ 
-        user: null, 
-        role: null, 
+      localStorage.removeItem('elicash_token');
+      set({
+        user: null,
+        role: null,
         tenantId: null,
         currency: 'USD',
         symbol: '$',
-        isAuthenticated: false 
+        isAuthenticated: false
       });
     }
   },
   clearUser: () => {
     localStorage.removeItem('elicash_user');
-    set({ 
-      user: null, 
-      role: null, 
+    localStorage.removeItem('elicash_token');
+    set({
+      user: null,
+      role: null,
       tenantId: null,
       currency: 'USD',
       symbol: '$',
-      isAuthenticated: false 
+      isAuthenticated: false
     });
   },
 }));

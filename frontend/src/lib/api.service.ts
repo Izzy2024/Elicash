@@ -3,9 +3,10 @@ const API_URL = import.meta.env.PUBLIC_API_URL || 'http://localhost:4000';
 
 class SimpleAPIService {
   private getHeaders(): HeadersInit {
-    return {
-      'Content-Type': 'application/json',
-    };
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    const token = typeof window !== 'undefined' ? localStorage.getItem('elicash_token') : null;
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    return headers;
   }
 
   async get(endpoint: string): Promise<any> {

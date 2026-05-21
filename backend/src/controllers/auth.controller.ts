@@ -49,6 +49,7 @@ export const login = async (req: Request, res: Response) => {
     res.cookie('token', token, authCookieOptions);
 
     res.json({
+      token,
       user: {
         id: user.id,
         email: user.email,
