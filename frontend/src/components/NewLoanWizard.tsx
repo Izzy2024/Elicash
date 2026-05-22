@@ -289,8 +289,14 @@ export default function NewLoanWizard() {
         {simulation.length > 0 && (
           <div className="mt-6 border-t border-gray-100 pt-4">
             <h4 className="font-bold text-slate-800 mb-3">
-              {esSinPlazo ? 'Proyección de períodos (sin plazo)' : 'Tabla de Cuotas Prevista'}
+              {esSinPlazo ? 'Primera cuota estimada' : 'Tabla de Cuotas Prevista'}
             </h4>
+            {esSinPlazo && (
+              <p className="mb-3 text-xs text-slate-500">
+                En préstamos sin plazo se genera una sola cuota inicial. Los siguientes períodos se recalculan
+                según el saldo que vaya quedando después de cada pago.
+              </p>
+            )}
             <div className="max-h-48 overflow-y-auto space-y-2 pr-1">
               {simulation.map((s) => (
                 <div key={s.numero} className="flex items-center justify-between bg-slate-50 px-3 py-2 rounded-lg text-sm border border-slate-100">

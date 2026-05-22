@@ -75,16 +75,14 @@ export const simulateLoan = async (req: Request, res: Response) => {
 
     let installments;
     if (isSinPlazo) {
-      // Simula N períodos asumiendo solo interés (sin reducción de capital)
-      const periodos = num_cuotas ?? 12;
-      const rows = [];
-      let saldo = monto;
-      let fecha = new Date(fecha_inicio);
-      for (let i = 1; i <= periodos; i++) {
-        rows.push(LoanCalculatorService.calcularSiguienteCuotaSinPlazo(saldo, tasa_interes, frecuencia, fecha, i));
-        fecha = rows[rows.length - 1]!.fecha_vencimiento;
-      }
-      installments = rows;
+      installments = [
+        LoanCalculatorService.calcularPrimerCuotaSinPlazo(
+          monto,
+          tasa_interes,
+          frecuencia,
+          new Date(fecha_inicio)
+        )
+      ];
     } else if (tipo_interes === 'simple') {
       installments = LoanCalculatorService.calcularAmortizacionSimple(
         monto, tasa_interes, num_cuotas!, frecuencia, new Date(fecha_inicio)
