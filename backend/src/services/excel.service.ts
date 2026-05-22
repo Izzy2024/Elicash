@@ -29,6 +29,7 @@ type PagoMesData = {
 };
 
 type ExcelReporteInput = {
+  currencySymbol: string;
   resumen: ResumenData;
   morosos: MorosoData[];
   pagosMes: PagoMesData[];
@@ -39,6 +40,7 @@ export class ExcelService {
     const workbook = new ExcelJS.Workbook();
     workbook.creator = 'EliCash';
     workbook.created = new Date();
+    const currencyFormat = `${data.currencySymbol}#,##0.00`;
 
     const resumenSheet = workbook.addWorksheet('Resumen');
     resumenSheet.columns = [
@@ -47,14 +49,14 @@ export class ExcelService {
     ];
 
     resumenSheet.addRows([
-      { metrica: 'Cobrado Hoy', valor: data.resumen.cobradoHoy },
-      { metrica: 'Pendiente Hoy', valor: data.resumen.pendienteHoy },
+      { metrica: 'Cobrado del Periodo', valor: data.resumen.cobradoHoy },
+      { metrica: 'Pendiente del Periodo', valor: data.resumen.pendienteHoy },
       { metrica: 'Total Prestado (Activo)', valor: data.resumen.totalPrestado },
       { metrica: 'Total Recuperado (Activo)', valor: data.resumen.totalRecuperado },
-      { metrica: 'Ganancia del Mes', valor: data.resumen.gananciaMes }
+      { metrica: 'Ganancia del Periodo', valor: data.resumen.gananciaMes }
     ]);
 
-    resumenSheet.getColumn('valor').numFmt = '$#,##0.00';
+    resumenSheet.getColumn('valor').numFmt = currencyFormat;
     resumenSheet.getRow(1).font = { bold: true };
 
     const morososSheet = workbook.addWorksheet('Morosos');
@@ -78,7 +80,7 @@ export class ExcelService {
 
     morososSheet.getRow(1).font = { bold: true };
     morososSheet.getColumn('fechaVencimiento').numFmt = 'dd/mm/yyyy';
-    morososSheet.getColumn('saldoPendiente').numFmt = '$#,##0.00';
+    morososSheet.getColumn('saldoPendiente').numFmt = currencyFormat;
 
     const pagosMesSheet = workbook.addWorksheet('Pagos Mes');
     pagosMesSheet.columns = [
@@ -100,7 +102,7 @@ export class ExcelService {
 
     pagosMesSheet.getRow(1).font = { bold: true };
     pagosMesSheet.getColumn('fechaPago').numFmt = 'dd/mm/yyyy';
-    pagosMesSheet.getColumn('montoPagado').numFmt = '$#,##0.00';
+    pagosMesSheet.getColumn('montoPagado').numFmt = currencyFormat;
 
     const buffer = await workbook.xlsx.writeBuffer();
     return Buffer.from(buffer as ArrayBuffer);

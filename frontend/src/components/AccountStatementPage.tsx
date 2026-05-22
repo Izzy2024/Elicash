@@ -120,116 +120,13 @@ export default function AccountStatementPage({ clientId: clientIdProp }: Account
 
     setExporting(true);
     try {
-      const printWindow = window.open('', '_blank');
-      if (!printWindow) return;
-
-      const statementHTML = `
-        <!DOCTYPE html>
-        <html>
-          <head>
-            <title>Estado de Cuenta - ${client.nombre}</title>
-            <style>
-              body { font-family: Arial, sans-serif; margin: 20px; }
-              .header { text-align: center; margin-bottom: 30px; }
-              .client-info { margin-bottom: 20px; }
-              table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
-              th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-              th { background-color: #f5f5f5; }
-              .loan-header { background-color: #e8f4fd; padding: 10px; margin: 20px 0 10px 0; border-radius: 5px; }
-            </style>
-          </head>
-          <body>
-            <div class="header">
-              <h1>Estado de Cuenta</h1>
-              <h2>EliCash - Gestión de Préstamos</h2>
-            </div>
-
-            <div class="client-info">
-              <h3>Información del Cliente</h3>
-              <p><strong>Nombre:</strong> ${client.nombre}</p>
-              <p><strong>Cédula:</strong> ${client.cedula}</p>
-              <p><strong>Teléfono:</strong> ${client.telefono}</p>
-              <p><strong>Dirección:</strong> ${client.direccion}</p>
-              <p><strong>Fecha:</strong> ${new Date().toLocaleDateString('es-ES')}</p>
-            </div>
-
-            ${client.loans.map((loan) => `
-              <div class="loan-header">
-                <h4>Préstamo #${loan.id.substring(0, 8)}</h4>
-                <p>Monto: ${symbol}${loan.monto.toLocaleString()} | Tasa: ${loan.tasa_interes}% | Estado: ${loan.estado}</p>
-              </div>
-
-              <table>
-                <thead>
-                  <tr>
-                    <th>Cuota</th>
-                    <th>Fecha Vencimiento</th>
-                    <th>Monto Cuota</th>
-                    <th>Estado</th>
-                    <th>Fecha Pago</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  ${loan.installments.map((inst) => `
-                    <tr>
-                      <td>${inst.numero}</td>
-                      <td>${new Date(inst.fecha_vencimiento).toLocaleDateString('es-ES')}</td>
-                      <td>${symbol}${inst.monto_cuota.toFixed(2)}</td>
-                      <td>${inst.estado}</td>
-                      <td>${inst.payments && inst.payments.filter((p) => !p.es_excedente).length > 0 ? new Date(inst.payments.filter((p) => !p.es_excedente)[0].fecha_pago).toLocaleDateString('es-ES') : '-'}</td>
-                    </tr>
-                  `).join('')}
-                </tbody>
-              </table>
-
-              ${loan.installments.some((inst) => (inst.payments || []).some((p) => !p.es_excedente)) ? `
-                <div style="margin: 18px 0 8px; font-weight: bold;">Pagos registrados</div>
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Fecha</th>
-                      <th>Cuota</th>
-                      <th>Capital</th>
-                      <th>Interés</th>
-                      <th>Mora</th>
-                      <th>Total</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    ${loan.installments.flatMap((inst) => (inst.payments || [])
-                      .filter((p) => !p.es_excedente)
-                      .map((pago) => `
-                        <tr>
-                          <td>${new Date(pago.fecha_pago).toLocaleDateString('es-ES')}</td>
-                          <td>#${inst.numero}</td>
-                          <td>${symbol}${(pago.monto_a_capital || 0).toFixed(2)}</td>
-                          <td>${symbol}${(pago.monto_a_interes || 0).toFixed(2)}</td>
-                          <td>${symbol}${(pago.monto_a_mora || 0).toFixed(2)}</td>
-                          <td>${symbol}${pago.monto_pagado.toFixed(2)}</td>
-                        </tr>
-                      `)
-                    ).join('')}
-                  </tbody>
-                </table>
-              ` : ''}
-            `).join('')}
-
-            <div style="margin-top: 40px; text-align: center; font-size: 12px; color: #666;">
-              <p>Este documento es generado automáticamente por EliCash</p>
-            </div>
-          </body>
-        </html>
-      `;
-
-      printWindow.document.write(statementHTML);
-      printWindow.document.close();
-
-      setTimeout(() => {
-        printWindow.print();
-      }, 500);
+      await apiService.download(
+        `/api/clients/${client.id}/estado-cuenta`,
+        `estado-cuenta-${client.nombre.replace(/\s+/g, '-').toLowerCase()}-${client.id.substring(0, 8)}.pdf`
+      );
     } catch (error) {
       console.error('Error exporting statement:', error);
-      alert('Error al generar el estado de cuenta');
+      alert('Error al descargar el estado de cuenta');
     } finally {
       setExporting(false);
     }
