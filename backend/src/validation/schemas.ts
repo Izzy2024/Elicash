@@ -3,6 +3,9 @@ import { z } from 'zod';
 const nonEmptyString = z.string().trim().min(1);
 const optionalString = z.string().trim().optional();
 const optionalNullableString = z.string().trim().optional().nullable();
+const moneyAmount = z.number().positive().max(1_000_000_000_000);
+const interestRate = z.number().nonnegative().max(1_000);
+const installmentCount = z.number().int().positive().max(600);
 
 const referenceSchema = z.object({
   nombre: nonEmptyString,
@@ -52,12 +55,12 @@ export const createClientSchema = z.object({
 
 const loanBaseSchema = z.object({
   client_id: nonEmptyString,
-  monto: z.number().positive(),
-  tasa_interes: z.number().nonnegative(),
+  monto: moneyAmount,
+  tasa_interes: interestRate,
   tipo_interes: z.enum(['simple', 'compuesto']),
   tipo_prestamo: z.enum(['cuotas', 'sin_plazo']).default('cuotas'),
   frecuencia: z.enum(['diaria', 'semanal', 'quincenal', 'mensual']),
-  num_cuotas: z.number().int().positive().optional(),
+  num_cuotas: installmentCount.optional(),
   fecha_inicio: z.iso.datetime()
 });
 

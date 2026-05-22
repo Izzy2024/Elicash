@@ -101,6 +101,7 @@ export const simulateLoan = async (req: Request, res: Response) => {
       return res.status(400).json({ message: 'Datos de simulación inválidos' });
     }
 
+    logger.error({ err: error, body: req.body }, 'simulateLoan error');
     res.status(500).json({ message: 'Error al simular préstamo' });
   }
 };

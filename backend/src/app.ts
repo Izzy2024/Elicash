@@ -13,6 +13,9 @@ import settingsRoutes from './routes/settings.routes';
 
 const app: Application = express();
 
+// Railway sits behind a proxy and forwards client IP data via X-Forwarded-* headers.
+app.set('trust proxy', 1);
+
 app.use(cors({
   origin: (origin, callback) => {
     if (isAllowedOrigin(origin)) {
