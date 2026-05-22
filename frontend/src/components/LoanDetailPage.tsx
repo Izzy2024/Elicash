@@ -91,24 +91,10 @@ export default function LoanDetailPage({ loanId: loanIdProp }: LoanDetailPagePro
 
     setExporting(true);
     try {
-      const response = await fetch(`${import.meta.env.PUBLIC_API_URL || 'http://localhost:4000'}/api/loans/${loanId}/contract`, {
-        credentials: 'include'
-      });
-
-      if (!response.ok) {
-        alert('Error al generar el contrato PDF');
-        return;
-      }
-
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const anchor = document.createElement('a');
-      anchor.href = url;
-      anchor.download = `contrato-prestamo-${loanId.substring(0, 8)}.pdf`;
-      document.body.appendChild(anchor);
-      anchor.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(anchor);
+      await apiService.download(
+        `/api/loans/${loanId}/contract`,
+        `contrato-prestamo-${loanId.substring(0, 8)}.pdf`
+      );
     } catch (error) {
       console.error('Error exporting contract:', error);
       alert('Error al descargar el contrato');

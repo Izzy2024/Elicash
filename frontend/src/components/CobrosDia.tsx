@@ -26,8 +26,6 @@ export default function CobrosDia() {
   const { user, symbol } = useAuthStore();
   const { pendingCount, refresh: refreshQueue } = useOfflineQueue();
 
-  const API_URL = import.meta.env.PUBLIC_API_URL || 'http://localhost:4000';
-
   React.useEffect(() => {
     fetchCobros();
     fetchResumenHoy();
@@ -162,23 +160,10 @@ export default function CobrosDia() {
 
   const exportReceipt = async (paymentId: string) => {
     try {
-      const response = await fetch(`${API_URL}/api/cobros/payments/${paymentId}/receipt`, {
-        credentials: 'include'
-      });
-
-      if (response.ok) {
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `recibo-pago-${paymentId.substring(0, 8)}.pdf`;
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
-      } else {
-        alert('Error al generar el recibo PDF');
-      }
+      await apiService.download(
+        `/api/cobros/payments/${paymentId}/receipt`,
+        `recibo-pago-${paymentId.substring(0, 8)}.pdf`
+      );
     } catch (error) {
       console.error('Error exporting receipt:', error);
       alert('Error al descargar el recibo');
