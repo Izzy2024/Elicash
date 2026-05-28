@@ -24,9 +24,12 @@ export class PaymentDistributionService {
     installment: Installment,
     ordenDistribucion: string = 'interes_primero',
     distribucionManual?: ManualDistributionInput,
-    moraPendiente: number = 0
+    moraPendiente: number = 0,
+    cobrarInteres: boolean = true
   ): DistributionResult {
-    const interesRestante = Math.max(0, installment.monto_interes - (installment.interes_pagado || 0));
+    const interesRestante = cobrarInteres
+      ? Math.max(0, installment.monto_interes - (installment.interes_pagado || 0))
+      : 0;
     const capitalTotal = installment.monto_cuota - installment.monto_interes;
     const capitalRestante = Math.max(0, capitalTotal - (installment.capital_pagado || 0));
 

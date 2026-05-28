@@ -5,6 +5,9 @@ import { useOfflineQueue } from '../hooks/useOfflineQueue';
 
 type Filtro = 'hoy' | 'mora' | 'activos' | 'todos';
 
+const formatMoney = (value: number) =>
+  Number(value || 0).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
 export default function CobrosDia() {
   const [cobros, setCobros] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -92,9 +95,12 @@ export default function CobrosDia() {
         const interes = parseFloat(distManual.interes || '0');
         const mora = parseFloat(distManual.mora || '0');
         const totalManual = capital + interes + mora;
-        if (Math.abs(totalManual - monto) < 0.01) {
-          paymentData.distribucion_manual = { capital, interes, mora };
+        if (Math.abs(totalManual - monto) > 0.01) {
+          alert('La distribución manual debe sumar exactamente el monto recibido');
+          setProcessing(null);
+          return;
         }
+        paymentData.distribucion_manual = { capital, interes, mora };
       }
 
       const response = await apiService.post('/api/cobros/payments', paymentData);
@@ -176,15 +182,25 @@ export default function CobrosDia() {
     const capitalTotal = (cobro.monto_cuota || 0) - interesTotal;
     const interesPagado = cobro.interes_pagado || 0;
     const capitalPagado = cobro.capital_pagado || 0;
+    const esFuturo = new Date(cobro.fecha_vencimiento).setHours(0, 0, 0, 0) > new Date().setHours(0, 0, 0, 0);
+    const frecuencia = cobro.loan?.frecuencia;
+    const omiteInteresAdelantado = esFuturo && (frecuencia === 'quincenal' || frecuencia === 'mensual');
 
-    const interesRestante = Math.max(0, interesTotal - interesPagado);
+    const interesRestante = omiteInteresAdelantado ? 0 : Math.max(0, interesTotal - interesPagado);
     const aInteres = Math.min(monto, interesRestante);
     const restante = monto - aInteres;
     const capitalRestante = Math.max(0, capitalTotal - capitalPagado);
     const aCapital = Math.min(restante, capitalRestante);
     const excedente = restante - aCapital;
 
-    return { aCapital, aInteres, aMora: 0, excedente, saldoRestante: Math.max(0, (cobro.saldo_pendiente || 0) - monto) };
+    return {
+      aCapital,
+      aInteres,
+      aMora: 0,
+      excedente,
+      saldoRestante: Math.max(0, (cobro.saldo_pendiente || 0) - monto),
+      omiteInteresAdelantado
+    };
   };
 
   const resetForm = () => {
@@ -341,9 +357,9 @@ export default function CobrosDia() {
                   </h4>
                 </div>
                   <div className="text-left sm:text-right">
-                  <p className="font-bold text-lg text-slate-700">{symbol}{cobro.monto_cuota?.toLocaleString()}</p>
+                  <p className="font-bold text-lg text-slate-700">{symbol}{formatMoney(cobro.monto_cuota || 0)}</p>
                   <p className="text-xs text-slate-400">
-                    Saldo: {symbol}{cobro.saldo_pendiente?.toLocaleString()}
+                    Saldo: {symbol}{formatMoney(cobro.saldo_pendiente || 0)}
                   </p>
                 </div>
               </div>
@@ -378,8 +394,8 @@ export default function CobrosDia() {
               {cobro.tiene_abono && !isCompleted && (
                 <div className="mb-3">
                   <div className="flex justify-between text-xs text-slate-500 mb-1">
-                    <span>Capital: {symbol}{(cobro.capital_pagado || 0).toLocaleString()}/{(cobro.monto_cuota - cobro.monto_interes).toLocaleString()}</span>
-                    <span>Int: {symbol}{(cobro.interes_pagado || 0).toLocaleString()}/{(cobro.monto_interes || 0).toLocaleString()}</span>
+                    <span>Capital: {symbol}{formatMoney(cobro.capital_pagado || 0)}/{formatMoney((cobro.monto_cuota || 0) - (cobro.monto_interes || 0))}</span>
+                    <span>Int: {symbol}{formatMoney(cobro.interes_pagado || 0)}/{formatMoney(cobro.monto_interes || 0)}</span>
                   </div>
                   <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
                     <div
@@ -419,69 +435,96 @@ export default function CobrosDia() {
                       {preview && preview.saldoRestante !== cobro.saldo_pendiente && (
                         <div className="bg-blue-50 border border-blue-100 rounded-lg p-3 text-sm">
                           <p className="font-semibold text-blue-800 mb-1">Distribución automática:</p>
-                          <div className="flex justify-between text-blue-700">
-                            <span>A capital: {symbol}{preview.aCapital.toLocaleString()}</span>
-                            <span>A interés: {symbol}{preview.aInteres.toLocaleString()}</span>
+                          <div className="grid grid-cols-2 gap-2 text-blue-700">
+                            <span>A capital: {symbol}{formatMoney(preview.aCapital)}</span>
+                            <span>A interés: {symbol}{formatMoney(preview.aInteres)}</span>
                           </div>
-                          {preview.excedente > 0 && (
-                            <p className="text-emerald-600 font-medium mt-1">Excedente: {symbol}{preview.excedente.toLocaleString()} → siguiente cuota</p>
+                          {preview.omiteInteresAdelantado && (
+                            <p className="mt-2 rounded-lg bg-emerald-100 px-2 py-1 text-xs font-bold text-emerald-700">
+                              Pago adelantado: el interés de esta cuota futura no se cobra.
+                            </p>
                           )}
-                          <p className="text-slate-500 mt-1">Saldo cuota: {symbol}{preview.saldoRestante.toLocaleString()}</p>
+                          {preview.excedente > 0 && (
+                            <p className="text-emerald-600 font-medium mt-1">Excedente: {symbol}{formatMoney(preview.excedente)} a siguiente cuota</p>
+                          )}
+                          <p className="text-slate-500 mt-1">Saldo cuota: {symbol}{formatMoney(preview.saldoRestante)}</p>
                         </div>
                       )}
 
-                      {/* Opciones avanzadas colapsadas */}
                       <button
                         onClick={() => setMostrarOpcionesAvanzadas(!mostrarOpcionesAvanzadas)}
-                        className="flex items-center gap-2 text-sm text-slate-500 hover:text-slate-700 transition-colors"
+                        className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3 text-left text-sm font-bold text-slate-700 shadow-sm transition-colors hover:bg-slate-50"
                       >
+                        <span>Ajustar distribución manual</span>
                         <svg className={`w-4 h-4 transition-transform ${mostrarOpcionesAvanzadas ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
                         </svg>
-                        ⚙️ Opciones avanzadas
                       </button>
 
                       {mostrarOpcionesAvanzadas && (
-                        <div className="space-y-3 border border-slate-200 rounded-xl p-3 bg-slate-50">
-                          {/* Distribución manual */}
-                          <label className="flex items-center gap-2 text-sm text-slate-600 cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={modoManual}
-                              onChange={(e) => setModoManual(e.target.checked)}
-                              className="rounded border-slate-300 text-blue-500 focus:ring-blue-500"
-                            />
-                            Distribución manual
-                          </label>
+                        <div className="space-y-4 rounded-2xl border border-blue-100 bg-gradient-to-br from-white to-blue-50/70 p-4 shadow-sm">
+                          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                            <div>
+                              <p className="text-sm font-black text-slate-800">Distribución del pago</p>
+                              <p className="text-xs text-slate-500">Usa automático para lo normal; activa manual si necesitas separar capital, interés o mora.</p>
+                            </div>
+                            <label className="inline-flex cursor-pointer items-center gap-2 rounded-full bg-white px-3 py-2 text-sm font-bold text-slate-600 shadow-sm">
+                              <input
+                                type="checkbox"
+                                checked={modoManual}
+                                onChange={(e) => setModoManual(e.target.checked)}
+                                className="rounded border-slate-300 text-blue-500 focus:ring-blue-500"
+                              />
+                              Modo manual
+                            </label>
+                          </div>
 
                           {modoManual && (
-                            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-                              <div className="bg-white border border-slate-200 rounded-xl px-3 py-2">
-                                <label className="text-[10px] uppercase font-bold text-slate-400 block">Capital</label>
+                            <div className="space-y-3">
+                              {preview && (
+                                <button
+                                  type="button"
+                                  onClick={() => setDistManual({
+                                    capital: preview.aCapital.toFixed(2),
+                                    interes: preview.aInteres.toFixed(2),
+                                    mora: preview.aMora.toFixed(2)
+                                  })}
+                                  className="w-full rounded-xl border border-blue-200 bg-white px-3 py-2 text-sm font-bold text-blue-700 hover:bg-blue-50"
+                                >
+                                  Usar distribución sugerida
+                                </button>
+                              )}
+                              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                              <div className="bg-white border border-slate-200 rounded-2xl px-4 py-3 shadow-sm">
+                                <label className="text-[11px] uppercase font-black text-emerald-600 block">Capital</label>
                                 <input
                                   type="number"
+                                  inputMode="decimal"
                                   value={distManual.capital}
                                   onChange={(e) => setDistManual({ ...distManual, capital: e.target.value })}
-                                  className="bg-transparent w-full focus:outline-none font-bold text-slate-700 text-sm"
+                                  className="mt-1 bg-transparent w-full focus:outline-none font-black text-slate-800 text-xl"
                                 />
                               </div>
-                              <div className="bg-white border border-slate-200 rounded-xl px-3 py-2">
-                                <label className="text-[10px] uppercase font-bold text-slate-400 block">Interés</label>
+                              <div className="bg-white border border-slate-200 rounded-2xl px-4 py-3 shadow-sm">
+                                <label className="text-[11px] uppercase font-black text-blue-600 block">Interés</label>
                                 <input
                                   type="number"
+                                  inputMode="decimal"
                                   value={distManual.interes}
                                   onChange={(e) => setDistManual({ ...distManual, interes: e.target.value })}
-                                  className="bg-transparent w-full focus:outline-none font-bold text-slate-700 text-sm"
+                                  className="mt-1 bg-transparent w-full focus:outline-none font-black text-slate-800 text-xl"
                                 />
                               </div>
-                              <div className="bg-white border border-slate-200 rounded-xl px-3 py-2">
-                                <label className="text-[10px] uppercase font-bold text-slate-400 block">Mora</label>
+                              <div className="bg-white border border-slate-200 rounded-2xl px-4 py-3 shadow-sm">
+                                <label className="text-[11px] uppercase font-black text-orange-600 block">Mora</label>
                                 <input
                                   type="number"
+                                  inputMode="decimal"
                                   value={distManual.mora}
                                   onChange={(e) => setDistManual({ ...distManual, mora: e.target.value })}
-                                  className="bg-transparent w-full focus:outline-none font-bold text-slate-700 text-sm"
+                                  className="mt-1 bg-transparent w-full focus:outline-none font-black text-slate-800 text-xl"
                                 />
+                              </div>
                               </div>
                             </div>
                           )}
@@ -490,9 +533,9 @@ export default function CobrosDia() {
                             const monto = parseFloat(customAmount || '0');
                             const diff = Math.abs(totalManual - monto);
                             if (diff > 0.01 && monto > 0) {
-                              return <p className="text-red-500 text-xs font-medium">La suma debe ser igual al monto recibido ({symbol}{monto.toLocaleString()})</p>;
+                              return <p className="rounded-xl bg-red-50 px-3 py-2 text-xs font-bold text-red-600">La suma debe ser igual al monto recibido ({symbol}{formatMoney(monto)}). Falta o sobra {symbol}{formatMoney(diff)}.</p>;
                             }
-                            return null;
+                            return <p className="rounded-xl bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700">Total manual listo: {symbol}{formatMoney(totalManual)}</p>;
                           })()}
                         </div>
                       )}

@@ -17,14 +17,14 @@ function tableRow(
   widths: number[],
   x: number,
   y: number,
-  opts: { bold?: boolean; fill?: string | undefined } = {}
+  opts: { bold?: boolean; fill?: string | undefined; textColor?: string } = {}
 ) {
   if (opts.fill) {
     doc.save();
     doc.rect(x - 2, y - 2, widths.reduce((a, b) => a + b, 0) + 4, 14).fill(opts.fill);
     doc.restore();
   }
-  doc.fontSize(8).font(opts.bold ? 'Helvetica-Bold' : 'Helvetica').fillColor('black');
+  doc.fontSize(8).font(opts.bold ? 'Helvetica-Bold' : 'Helvetica').fillColor(opts.textColor ?? 'black');
   let cx = x;
   cols.forEach((text, i) => {
     doc.text(text, cx, y, { width: (widths[i] ?? 60) - 2, ellipsis: true });
@@ -90,14 +90,14 @@ export class PDFService {
         .font('Helvetica').text(tenantName);
       doc.font('Helvetica-Bold').text('Prestatario: ', { continued: true })
         .font('Helvetica').text(loan.client.nombre);
-      doc.text(`Cédula: ${loan.client.cedula}   ·   Tel: ${loan.client.telefono}   ·   Dir: ${loan.client.direccion}`);
+      doc.text(`Cedula: ${loan.client.cedula}   -   Tel: ${loan.client.telefono}   -   Dir: ${loan.client.direccion}`);
       if (loan.client.references.length > 0) {
         doc.font('Helvetica-Bold').text('Referencias: ', { continued: true }).font('Helvetica')
-          .text(loan.client.references.map(r => `${r.nombre} (${r.relacion}) ${r.telefono}`).join(' · '));
+          .text(loan.client.references.map(r => `${r.nombre} (${r.relacion}) ${r.telefono}`).join(' - '));
       }
       if (loan.client.guarantors.length > 0) {
         doc.font('Helvetica-Bold').text('Garantes: ', { continued: true }).font('Helvetica')
-          .text(loan.client.guarantors.map(g => `${g.nombre} CC ${g.cedula}`).join(' · '));
+          .text(loan.client.guarantors.map(g => `${g.nombre} CC ${g.cedula}`).join(' - '));
       }
 
       // Condiciones
@@ -204,55 +204,56 @@ export class PDFService {
     const { name: tenantName, symbol: sym } = await fetchTenant(payment.installment.loan.client.tenantId);
 
     return new Promise<Buffer>((resolve, reject) => {
-      const doc = new PDFKit({ margin: 40, size: [340, 500] });
+      const doc = new PDFKit({ margin: 40, size: [360, 560] });
       const chunks: Buffer[] = [];
       doc.on('data', c => chunks.push(c));
       doc.on('end', () => resolve(Buffer.concat(chunks)));
       doc.on('error', reject);
 
-      doc.rect(0, 0, 340, 44).fill('#1e3a5f');
+      doc.rect(0, 0, 360, 46).fill('#1e3a5f');
       doc.fontSize(14).font('Helvetica-Bold').fillColor('white').text(tenantName, 20, 8);
-      doc.fontSize(8).font('Helvetica').fillColor('rgba(255,255,255,0.7)').text('RECIBO DE PAGO', 20, 28);
+      doc.fontSize(8).font('Helvetica').fillColor('#dbeafe').text('RECIBO DE PAGO', 20, 28);
       doc.fillColor('black');
-      doc.y = 56;
+      doc.y = 58;
 
       const line = (label: string, value: string) => {
-        doc.fontSize(8).font('Helvetica-Bold').text(label, 20, doc.y, { continued: true, width: 120 });
-        doc.font('Helvetica').text(value, { width: 200 });
-        doc.y += 14;
+        const y = doc.y;
+        doc.fontSize(8).font('Helvetica-Bold').fillColor('#334155').text(label, 20, y, { width: 105 });
+        doc.font('Helvetica').fillColor('#111827').text(value, 130, y, { width: 200, ellipsis: true });
+        doc.y = Math.max(doc.y, y + 15);
       };
 
-      line('Recibo N°:', String(payment.numero_control || payment.id.slice(0, 8).toUpperCase()));
+      line('Recibo No.:', String(payment.numero_control || payment.id.slice(0, 8).toUpperCase()));
       line('Fecha de pago:', fmtDate(payment.fecha_pago));
       doc.moveDown(0.4);
 
       doc.fontSize(8).font('Helvetica-Bold').text('CLIENTE', 20).moveDown(0.2);
       line('Nombre:', payment.installment.loan.client.nombre);
-      line('Cédula:', payment.installment.loan.client.cedula);
+      line('Cedula:', payment.installment.loan.client.cedula);
       doc.moveDown(0.4);
 
       doc.font('Helvetica-Bold').text('DETALLE DEL PAGO', 20).moveDown(0.2);
-      line('Cuota N°:', String(payment.installment.numero));
+      line('Cuota No.:', String(payment.installment.numero));
       line('Vencimiento:', fmtDate(payment.installment.fecha_vencimiento));
       line('Monto pagado:', fmt(payment.monto_pagado, sym));
       doc.moveDown(0.2);
-      line('  → A capital:', fmt(payment.monto_a_capital, sym));
-      line('  → A interés:', fmt(payment.monto_a_interes, sym));
-      if (payment.monto_a_mora > 0) line('  → A mora:', fmt(payment.monto_a_mora, sym));
+      line('- A capital:', fmt(payment.monto_a_capital, sym));
+      line('- A interes:', fmt(payment.monto_a_interes, sym));
+      if (payment.monto_a_mora > 0) line('- A mora:', fmt(payment.monto_a_mora, sym));
       doc.moveDown(0.4);
 
-      doc.font('Helvetica-Bold').text('PRÉSTAMO', 20).moveDown(0.2);
+      doc.font('Helvetica-Bold').text('PRESTAMO', 20).moveDown(0.2);
       line('Monto original:', fmt(payment.installment.loan.monto, sym));
       line('Saldo pendiente:', fmt(payment.installment.saldo_pendiente, sym));
       doc.moveDown(0.8);
 
-      doc.rect(20, doc.y, 300, 22).fill('#f0f4f8');
+      doc.rect(20, doc.y, 320, 24).fill('#f0f4f8');
       doc.fontSize(10).font('Helvetica-Bold').fillColor('#1e3a5f')
-        .text('✓ PAGO REGISTRADO Y CONFIRMADO', 30, doc.y + 5, { width: 280, align: 'center' });
+        .text('PAGO REGISTRADO Y CONFIRMADO', 30, doc.y + 6, { width: 300, align: 'center' });
       doc.fillColor('black');
-      doc.y += 30;
+      doc.y += 34;
       doc.fontSize(7).font('Helvetica').fillColor('#666')
-        .text('Este recibo es válido como comprobante de pago.', 20, doc.y, { align: 'center', width: 300 });
+        .text('Este recibo es valido como comprobante de pago.', 20, doc.y, { align: 'center', width: 320 });
 
       doc.end();
     });
@@ -336,11 +337,11 @@ export class PDFService {
           : loan.tipo_interes === 'simple' ? 'Interés fijo' : 'Cuota nivelada';
         const estadoBadge = loan.estado === 'completado' ? 'CANCELADO' : loan.estado === 'activo' ? 'ACTIVO' : 'EN MORA';
 
-        sectionTitle(doc, `Préstamo ${loan.id.slice(0, 8).toUpperCase()} — ${fmt(loan.monto, sym)} — ${tipoLabel} — ${estadoBadge}`);
+        sectionTitle(doc, `Prestamo ${loan.id.slice(0, 8).toUpperCase()} - ${fmt(loan.monto, sym)} - ${tipoLabel} - ${estadoBadge}`);
 
         doc.fontSize(8).font('Helvetica')
-          .text(`Tasa: ${loan.tasa_interes}% ${loan.frecuencia} · Inicio: ${fmtDate(loan.fecha_inicio)}` +
-            (loan.num_cuotas ? ` · ${loan.num_cuotas} cuotas` : ''), { width: doc.page.width - 80 });
+          .text(`Tasa: ${loan.tasa_interes}% ${loan.frecuencia} - Inicio: ${fmtDate(loan.fecha_inicio)}` +
+            (loan.num_cuotas ? ` - ${loan.num_cuotas} cuotas` : ''), { width: doc.page.width - 80 });
         if (loan.tipo_prestamo === 'sin_plazo' && loan.estado === 'activo') {
           doc.font('Helvetica-Bold').text('Saldo capital actual: ', { continued: true })
             .font('Helvetica').text(fmt(loan.saldo_capital ?? 0, sym));
@@ -350,9 +351,7 @@ export class PDFService {
         // Cabecera tabla
         const cw = [22, 72, 62, 62, 55, 55, 60, 62];
         const heads = ['#', 'Vencimiento', 'Cuota', 'Capital p.', 'Interés p.', 'Mora p.', 'Total p.', 'Estado'];
-        tableRow(doc, heads, cw, doc.page.margins.left, doc.y, { bold: true, fill: '#1e3a5f' });
-        doc.fillColor('white');
-        tableRow(doc, heads, cw, doc.page.margins.left, doc.y, { bold: true });
+        tableRow(doc, heads, cw, doc.page.margins.left, doc.y, { bold: true, fill: '#1e3a5f', textColor: 'white' });
         doc.fillColor('black');
         doc.y += 14;
 
@@ -394,8 +393,8 @@ export class PDFService {
               if (doc.y > doc.page.height - 30) { doc.addPage(); doc.y = 40; }
               doc.fontSize(7).font('Helvetica').fillColor('#555')
                 .text(
-                  `    › ${fmtDate(pago.fecha_pago)}: pagó ${fmt(pago.monto_pagado, sym)}` +
-                  ` → cap ${fmt(pago.monto_a_capital, sym)} / int ${fmt(pago.monto_a_interes, sym)}` +
+                  `    - ${fmtDate(pago.fecha_pago)}: pago ${fmt(pago.monto_pagado, sym)}` +
+                  ` - cap ${fmt(pago.monto_a_capital, sym)} / int ${fmt(pago.monto_a_interes, sym)}` +
                   (pago.monto_a_mora > 0 ? ` / mora ${fmt(pago.monto_a_mora, sym)}` : '') +
                   (pago.es_excedente ? ' [excedente aplicado]' : ''),
                   { width: doc.page.width - 80 }
@@ -415,7 +414,7 @@ export class PDFService {
 
       doc.moveDown(1);
       doc.fontSize(7.5).font('Helvetica').fillColor('#888')
-        .text(`Generado el ${fmtDate(new Date())} por ${tenantName} — EliCash`,
+        .text(`Generado el ${fmtDate(new Date())} por ${tenantName} - EliCash`,
           { align: 'center', width: doc.page.width - 80 });
 
       doc.end();
@@ -424,5 +423,5 @@ export class PDFService {
 }
 
 function loan_client_line(client: { nombre: string; cedula: string; telefono: string }) {
-  return `${client.nombre}   ·   Cédula: ${client.cedula}   ·   Tel: ${client.telefono}`;
+  return `${client.nombre}   -   Cedula: ${client.cedula}   -   Tel: ${client.telefono}`;
 }

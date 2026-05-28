@@ -195,6 +195,11 @@ export const registerPayment = async (req: Request, res: Response) => {
 
     // Obtener configuración del préstamo
     const loanConfig = await PaymentDistributionService.obtenerConfiguracion(installment.loan_id);
+    const omitirInteresAdelantado = debeOmitirInteresPorPagoAdelantado(
+      installment.fecha_vencimiento,
+      installment.loan.frecuencia,
+      !!distribucion_manual
+    );
 
     // Calcular distribución (el waterfall funciona igual para ambos tipos)
     const moraPendiente = calcularMoraPendiente(installment, loanConfig.tasa_mora_diaria);
@@ -203,7 +208,8 @@ export const registerPayment = async (req: Request, res: Response) => {
       installment,
       loanConfig.orden_distribucion,
       distribucion_manual,
-      moraPendiente
+      moraPendiente,
+      !omitirInteresAdelantado
     );
 
     // ─── Sin plazo: flujo independiente ───────────────────────────────────────
@@ -226,7 +232,7 @@ export const registerPayment = async (req: Request, res: Response) => {
         });
 
         const nuevaInteresPagado = Number(((installment.interes_pagado || 0) + dist.interes).toFixed(2));
-        const interesCubierto = nuevaInteresPagado >= installment.monto_interes - 0.01;
+        const interesCubierto = omitirInteresAdelantado || nuevaInteresPagado >= installment.monto_interes - 0.01;
         const nuevoSaldoCapital = Number(
           Math.max(0, (installment.loan.saldo_capital ?? installment.loan.monto) - dist.capital).toFixed(2)
         );
@@ -288,14 +294,15 @@ export const registerPayment = async (req: Request, res: Response) => {
           periodo_cerrado: result.interesCubierto,
           cuota_estado: result.interesCubierto ? 'pagada' : 'pendiente'
         },
+        interes_omitido_por_adelanto: omitirInteresAdelantado,
         loan_completado: result.interesCubierto && result.nuevoSaldoCapital <= 0.01
       });
     }
 
     // ─── Préstamos con plazo fijo (lógica original) ──────────────────────────
-    const interesPendiente = Number(
-      Math.max(0, installment.monto_interes - (installment.interes_pagado || 0)).toFixed(2)
-    );
+    const interesPendiente = omitirInteresAdelantado
+      ? 0
+      : Number(Math.max(0, installment.monto_interes - (installment.interes_pagado || 0)).toFixed(2));
     const capitalPendiente = Number(
       Math.max(0, (installment.monto_cuota - installment.monto_interes) - (installment.capital_pagado || 0)).toFixed(2)
     );
@@ -389,6 +396,7 @@ export const registerPayment = async (req: Request, res: Response) => {
         cuota_saldo_restante: debeReprogramarParcial ? 0 : saldoRestanteEnCuota,
         cuota_estado: estadoCuota
       },
+      interes_omitido_por_adelanto: omitirInteresAdelantado,
       loan_completado: estadoCuota === 'pagada' && result.excedente === 0
     });
   } catch (error) {
@@ -407,6 +415,8 @@ function calcularProximoVencimiento(fechaBase: Date, frecuencia: string): Date {
       return addDays(fechaBase, 1);
     case 'semanal':
       return addWeeks(fechaBase, 1);
+    case 'quincenal':
+      return addDays(fechaBase, 15);
     case 'mensual':
       return addMonths(fechaBase, 1);
     default:
@@ -440,18 +450,23 @@ async function aplicarExcedenteASiguienteCuota(
 
   if (!siguienteCuota || excedente <= 0) return;
 
+  const omitirInteresAdelantado = debeOmitirInteresPorPagoAdelantado(
+    siguienteCuota.fecha_vencimiento,
+    siguienteCuota.loan.frecuencia
+  );
   const dist = PaymentDistributionService.calcularDistribucion(
     excedente,
     siguienteCuota,
     ordenDistribucion,
     undefined,
-    calcularMoraPendiente(siguienteCuota, tasaMoraDiaria)
+    calcularMoraPendiente(siguienteCuota, tasaMoraDiaria),
+    !omitirInteresAdelantado
   );
   const montoAplicadoEnCuota = Number((dist.capital + dist.interes + dist.mora).toFixed(2));
   const moraPendiente = calcularMoraPendiente(siguienteCuota, tasaMoraDiaria);
-  const interesPendiente = Number(
-    Math.max(0, siguienteCuota.monto_interes - (siguienteCuota.interes_pagado || 0)).toFixed(2)
-  );
+  const interesPendiente = omitirInteresAdelantado
+    ? 0
+    : Number(Math.max(0, siguienteCuota.monto_interes - (siguienteCuota.interes_pagado || 0)).toFixed(2));
   const capitalPendiente = Number(
     Math.max(0, (siguienteCuota.monto_cuota - siguienteCuota.monto_interes) - (siguienteCuota.capital_pagado || 0)).toFixed(2)
   );
@@ -472,7 +487,9 @@ async function aplicarExcedenteASiguienteCuota(
       distribucion_manual: false,
       es_excedente: true,
       cobrador_id: cobradorId,
-      notas: 'Excedente de pago anterior'
+      notas: omitirInteresAdelantado
+        ? 'Excedente de pago anterior; interés omitido por pago adelantado'
+        : 'Excedente de pago anterior'
     }
   });
 
@@ -521,6 +538,19 @@ function calcularMoraPendiente(installment: Installment, tasaMoraDiaria: number)
   );
 
   return Number((saldoBase * (tasaMoraDiaria / 100) * diasVencido).toFixed(2));
+}
+
+function debeOmitirInteresPorPagoAdelantado(
+  fechaVencimiento: Date,
+  frecuencia?: string,
+  distribucionManual: boolean = false
+): boolean {
+  if (distribucionManual) return false;
+  if (frecuencia !== 'quincenal' && frecuencia !== 'mensual') return false;
+
+  const hoy = startOfDay(new Date());
+  const vencimiento = startOfDay(new Date(fechaVencimiento));
+  return vencimiento.getTime() > hoy.getTime();
 }
 
 async function reprogramarCuota(

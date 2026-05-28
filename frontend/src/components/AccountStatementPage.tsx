@@ -58,6 +58,9 @@ type AccountStatementPageProps = {
   clientId?: string;
 };
 
+const formatMoney = (value: number) =>
+  Number(value || 0).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
 export default function AccountStatementPage({ clientId: clientIdProp }: AccountStatementPageProps) {
   const clientId = clientIdProp ?? new URLSearchParams(window.location.search).get('id') ?? '';
   const { user, symbol } = useAuthStore();
@@ -393,23 +396,23 @@ export default function AccountStatementPage({ clientId: clientIdProp }: Account
                           }>
                             <td className="px-6 py-4 font-bold text-slate-600 tabular-nums">{inst.numero}</td>
                             <td className="px-6 py-4 text-slate-500 tabular-nums">{new Date(inst.fecha_vencimiento).toLocaleDateString('es-ES')}</td>
-                            <td className="px-6 py-4 text-right font-medium text-slate-700 tabular-nums">{symbol}{inst.monto_cuota.toFixed(2)}</td>
+                            <td className="px-6 py-4 text-right font-medium text-slate-700 tabular-nums">{symbol}{formatMoney(inst.monto_cuota)}</td>
                             <td className="px-6 py-4 text-right text-slate-600 tabular-nums">
-                              <span className="text-emerald-600 font-medium">{symbol}{(inst.capital_pagado || 0).toFixed(0)}</span>
+                              <span className="text-emerald-600 font-medium">{symbol}{formatMoney(inst.capital_pagado || 0)}</span>
                               <span className="text-slate-300 mx-1">/</span>
-                              <span>{symbol}{capitalTotal.toFixed(0)}</span>
+                              <span>{symbol}{formatMoney(capitalTotal)}</span>
                             </td>
                             <td className="px-6 py-4 text-right text-slate-600 tabular-nums">
-                              <span className="text-blue-600 font-medium">{symbol}{(inst.interes_pagado || 0).toFixed(0)}</span>
+                              <span className="text-blue-600 font-medium">{symbol}{formatMoney(inst.interes_pagado || 0)}</span>
                               <span className="text-slate-300 mx-1">/</span>
-                              <span>{symbol}{(inst.monto_interes || 0).toFixed(0)}</span>
+                              <span>{symbol}{formatMoney(inst.monto_interes || 0)}</span>
                             </td>
                             <td className="px-6 py-4 text-right text-slate-600 tabular-nums">
-                              <span className="text-orange-600 font-medium">{symbol}{(inst.mora_pagada || 0).toFixed(0)}</span>
+                              <span className="text-orange-600 font-medium">{symbol}{formatMoney(inst.mora_pagada || 0)}</span>
                               <span className="text-slate-300 mx-1">/</span>
-                              <span>{symbol}{(inst.mora_pagada || 0).toFixed(0)}</span>
+                              <span>{symbol}{formatMoney(inst.mora_pagada || 0)}</span>
                             </td>
-                            <td className="px-6 py-4 text-right font-bold text-slate-900 tabular-nums">{symbol}{inst.saldo_pendiente.toFixed(2)}</td>
+                            <td className="px-6 py-4 text-right font-bold text-slate-900 tabular-nums">{symbol}{formatMoney(inst.saldo_pendiente)}</td>
                             <td className="px-6 py-4 text-center">
                               {getStatusBadge()}
                             </td>
@@ -462,10 +465,10 @@ export default function AccountStatementPage({ clientId: clientIdProp }: Account
                                           )}
                                         </div>
                                         <div className="flex gap-3 items-center">
-                                          <span className="tabular-nums">CAP: <span className="font-bold text-emerald-600">{symbol}{(pago.monto_a_capital || 0).toFixed(0)}</span></span>
-                                          <span className="tabular-nums">INT: <span className="font-bold text-blue-600">{symbol}{(pago.monto_a_interes || 0).toFixed(0)}</span></span>
-                                          <span className="tabular-nums">MORA: <span className="font-bold text-orange-600">{symbol}{(pago.monto_a_mora || 0).toFixed(0)}</span></span>
-                                          <span className="font-black text-slate-800 bg-slate-100 px-2 py-0.5 rounded tabular-nums">TOTAL: {symbol}{pago.monto_pagado.toFixed(0)}</span>
+                                          <span className="tabular-nums">CAP: <span className="font-bold text-emerald-600">{symbol}{formatMoney(pago.monto_a_capital || 0)}</span></span>
+                                          <span className="tabular-nums">INT: <span className="font-bold text-blue-600">{symbol}{formatMoney(pago.monto_a_interes || 0)}</span></span>
+                                          <span className="tabular-nums">MORA: <span className="font-bold text-orange-600">{symbol}{formatMoney(pago.monto_a_mora || 0)}</span></span>
+                                          <span className="font-black text-slate-800 bg-slate-100 px-2 py-0.5 rounded tabular-nums">TOTAL: {symbol}{formatMoney(pago.monto_pagado)}</span>
                                         </div>
                                       </div>
                                     ))}

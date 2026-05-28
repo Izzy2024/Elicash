@@ -45,7 +45,7 @@ export const resetPasswordSchema = z.object({
 export const createClientSchema = z.object({
   nombre: nonEmptyString,
   cedula: nonEmptyString,
-  direccion: nonEmptyString,
+  direccion: optionalString,
   telefono: nonEmptyString,
   foto_url: optionalNullableString,
   ruta_id: optionalNullableString,

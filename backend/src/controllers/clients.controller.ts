@@ -100,7 +100,7 @@ export const createClient = async (req: Request, res: Response) => {
     const clientData: Prisma.ClientCreateInput = {
       nombre,
       cedula,
-      direccion,
+      direccion: direccion?.trim() || 'Sin direccion',
       telefono,
       foto_url: foto_url ?? null,
       tenantId

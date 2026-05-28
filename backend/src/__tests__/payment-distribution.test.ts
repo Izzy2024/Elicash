@@ -71,6 +71,22 @@ describe('PaymentDistributionService.calcularDistribucion', () => {
       expect(result.capital).toBeCloseTo(75, 2);
       expect(result.excedente).toBe(0);
     });
+
+    it('omite interés cuando el cobro adelantado aún no lo debe exigir', () => {
+      const inst = makeInstallment({ monto_cuota: 522.5, monto_interes: 47.5 });
+      const result = PaymentDistributionService.calcularDistribucion(
+        100,
+        inst,
+        'interes_primero',
+        undefined,
+        0,
+        false
+      );
+
+      expect(result.interes).toBe(0);
+      expect(result.capital).toBeCloseTo(100, 2);
+      expect(result.excedente).toBe(0);
+    });
   });
 
   describe('modo manual', () => {
