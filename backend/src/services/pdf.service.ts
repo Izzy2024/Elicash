@@ -1,5 +1,6 @@
 import PDFKit from 'pdfkit';
 import { prisma } from '../lib/prisma';
+import { calcularMontoSugeridoCobro, calcularMoraPendienteCobro } from './payment-policy.service';
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -196,7 +197,7 @@ export class PDFService {
     const payment = await prisma.payment.findUnique({
       where: { id: paymentId },
       include: {
-        installment: { include: { loan: { include: { client: true } } } }
+        installment: { include: { loan: { include: { client: true, loanConfig: true } } } }
       }
     });
     if (!payment) throw new Error('Pago no encontrado');
@@ -234,6 +235,7 @@ export class PDFService {
 
       doc.font('Helvetica-Bold').text('DETALLE DEL PAGO', 20).moveDown(0.2);
       line('Cuota No.:', String(payment.installment.numero));
+      line('Tipo de cuota:', payment.installment.tipo === 'arrastre' ? 'Arrastre / reprogramada' : 'Normal');
       line('Vencimiento:', fmtDate(payment.installment.fecha_vencimiento));
       line('Monto pagado:', fmt(payment.monto_pagado, sym));
       doc.moveDown(0.2);
@@ -245,6 +247,18 @@ export class PDFService {
       doc.font('Helvetica-Bold').text('PRESTAMO', 20).moveDown(0.2);
       line('Monto original:', fmt(payment.installment.loan.monto, sym));
       line('Saldo pendiente:', fmt(payment.installment.saldo_pendiente, sym));
+      const moraPendiente = calcularMoraPendienteCobro(
+        payment.installment,
+        payment.installment.loan.loanConfig?.tasa_mora_diaria || 0,
+        payment.fecha_pago
+      );
+      const politicaCobro = calcularMontoSugeridoCobro(
+        payment.installment,
+        payment.installment.loan.frecuencia,
+        moraPendiente
+      );
+      if (payment.es_excedente) line('Origen:', 'Aplicado como excedente de un pago anterior');
+      if (politicaCobro.interes_omitido_por_adelanto) line('Interés adelantado:', 'Omitido en este período');
       doc.moveDown(0.8);
 
       doc.rect(20, doc.y, 320, 24).fill('#f0f4f8');
@@ -268,6 +282,7 @@ export class PDFService {
     const loans = await prisma.loan.findMany({
       where: { client_id: clientId },
       include: {
+        loanConfig: true,
         installments: {
           orderBy: { numero: 'asc' },
           include: { payments: { orderBy: { fecha_pago: 'asc' } } }
@@ -309,11 +324,13 @@ export class PDFService {
           totalSaldoGlobal += loan.saldo_capital ?? 0;
         } else if (loan.estado === 'activo') {
           for (const inst of loan.installments) {
+            const moraPendiente = calcularMoraPendienteCobro(inst, loan.loanConfig?.tasa_mora_diaria || 0, hoy);
+            const politicaCobro = calcularMontoSugeridoCobro(inst, loan.frecuencia, moraPendiente);
             if (inst.estado !== 'pagada' && inst.estado !== 'reprogramada') {
-              totalSaldoGlobal += inst.saldo_pendiente;
+              totalSaldoGlobal += politicaCobro.total_exigible_cobro;
             }
             if (new Date(inst.fecha_vencimiento) < hoy && inst.estado === 'pendiente') {
-              totalMoraGlobal += inst.saldo_pendiente;
+              totalMoraGlobal += politicaCobro.total_exigible_cobro;
             }
           }
         }
@@ -349,8 +366,8 @@ export class PDFService {
         doc.moveDown(0.3);
 
         // Cabecera tabla
-        const cw = [22, 72, 62, 62, 55, 55, 60, 62];
-        const heads = ['#', 'Vencimiento', 'Cuota', 'Capital p.', 'Interés p.', 'Mora p.', 'Total p.', 'Estado'];
+        const cw = [22, 60, 54, 54, 48, 48, 58, 54, 54];
+        const heads = ['#', 'Venc.', 'Cuota', 'Cap. p.', 'Int. p.', 'Mora p.', 'Exigible', 'Total p.', 'Estado'];
         tableRow(doc, heads, cw, doc.page.margins.left, doc.y, { bold: true, fill: '#1e3a5f', textColor: 'white' });
         doc.fillColor('black');
         doc.y += 14;
@@ -363,11 +380,14 @@ export class PDFService {
           lCap += inst.capital_pagado;
           lInt += inst.interes_pagado;
           lMor += inst.mora_pagada;
+          const moraPendiente = calcularMoraPendienteCobro(inst, loan.loanConfig?.tasa_mora_diaria || 0, hoy);
+          const politicaCobro = calcularMontoSugeridoCobro(inst, loan.frecuencia, moraPendiente);
 
           const total = inst.capital_pagado + inst.interes_pagado + inst.mora_pagada;
           const estadoStr =
             inst.estado === 'pagada' ? 'Pagada' :
             inst.estado === 'reprogramada' ? 'Reprog.' :
+            inst.tipo === 'arrastre' ? 'Arrastre' :
             inst.estado === 'mora' ? 'MORA' : 'Pendiente';
 
           const rowFill =
@@ -382,10 +402,23 @@ export class PDFService {
             fmt(inst.capital_pagado, sym),
             fmt(inst.interes_pagado, sym),
             fmt(inst.mora_pagada, sym),
+            fmt(politicaCobro.total_exigible_cobro, sym),
             fmt(total, sym),
             estadoStr
           ], cw, doc.page.margins.left, doc.y, { fill: rowFill });
           doc.y += 13;
+
+          if (inst.estado !== 'pagada' && inst.estado !== 'reprogramada' && (moraPendiente > 0 || inst.tipo === 'arrastre' || politicaCobro.interes_omitido_por_adelanto)) {
+            if (doc.y > doc.page.height - 30) { doc.addPage(); doc.y = 40; }
+            const notas: string[] = [];
+            if (moraPendiente > 0) notas.push(`mora pendiente ${fmt(moraPendiente, sym)}`);
+            if (inst.tipo === 'arrastre') notas.push('cuota de arrastre por reprogramacion');
+            if (politicaCobro.interes_omitido_por_adelanto) notas.push('interes omitido por pago adelantado');
+            doc.fontSize(7).font('Helvetica').fillColor('#555')
+              .text(`    > ${notas.join(' | ')}`, { width: doc.page.width - 80 });
+            doc.fillColor('black').fontSize(8);
+            doc.y += 3;
+          }
 
           // Desglose de pagos individuales (expandido cuando hay múltiples o es sin_plazo)
           if (inst.payments.length > 0 && (inst.payments.length > 1 || loan.tipo_prestamo === 'sin_plazo')) {

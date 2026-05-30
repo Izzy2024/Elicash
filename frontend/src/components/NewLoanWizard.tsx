@@ -254,7 +254,7 @@ export default function NewLoanWizard() {
             <select name="frecuencia" value={formData.frecuencia} onChange={handleChange} className="w-full border border-gray-300 rounded-xl px-4 py-3 bg-white">
               <option value="diaria">Diaria</option>
               <option value="semanal">Semanal</option>
-              <option value="quincenal">Quincenal (15 días)</option>
+              <option value="quincenal">Quincenal (cortes 15 y 30)</option>
               <option value="mensual">Mensual</option>
             </select>
           </div>
@@ -307,6 +307,11 @@ export default function NewLoanWizard() {
               <p className="mb-3 text-xs text-slate-500">
                 En préstamos sin plazo se genera una sola cuota inicial. Los siguientes períodos se recalculan
                 según el saldo que vaya quedando después de cada pago.
+              </p>
+            )}
+            {formData.frecuencia === 'quincenal' && (
+              <p className="mb-3 text-xs text-slate-500">
+                Los vencimientos quincenales se alinean a cortes fijos: 15 y 30 de cada mes.
               </p>
             )}
             <div className="max-h-48 overflow-y-auto space-y-2 pr-1">

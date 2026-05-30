@@ -109,10 +109,20 @@ describe('LoanCalculatorService.calcularPrimerCuotaSinPlazo', () => {
     expect(diff).toBe(7 * 24 * 60 * 60 * 1000);
   });
 
-  it('quincenal: vence 15 días después', () => {
+  it('quincenal: vence en el próximo corte 15', () => {
     const c = LoanCalculatorService.calcularPrimerCuotaSinPlazo(200, 2, 'quincenal', BASE_DATE);
-    const diff = c.fecha_vencimiento.getTime() - BASE_DATE.getTime();
-    expect(diff).toBe(15 * 24 * 60 * 60 * 1000);
+    expect(c.fecha_vencimiento.toISOString()).toBe('2026-01-15T00:00:00.000Z');
+  });
+
+  it('quincenal: si inicia después del 15 vence el 30 del mismo mes', () => {
+    const c = LoanCalculatorService.calcularPrimerCuotaSinPlazo(
+      200,
+      2,
+      'quincenal',
+      new Date('2026-06-16T00:00:00.000Z')
+    );
+
+    expect(c.fecha_vencimiento.toISOString()).toBe('2026-06-30T00:00:00.000Z');
   });
 });
 
@@ -129,5 +139,17 @@ describe('LoanCalculatorService.calcularSiguienteCuotaSinPlazo', () => {
     const c1 = LoanCalculatorService.calcularSiguienteCuotaSinPlazo(1000, 3, 'mensual', BASE_DATE, 1);
     const c2 = LoanCalculatorService.calcularSiguienteCuotaSinPlazo(700, 3, 'mensual', c1.fecha_vencimiento, 2);
     expect(c2.monto_interes).toBeLessThan(c1.monto_interes);
+  });
+
+  it('quincenal: después de un vencimiento 30, la siguiente cuota vence el 15 del mes siguiente', () => {
+    const c = LoanCalculatorService.calcularSiguienteCuotaSinPlazo(
+      800,
+      5,
+      'quincenal',
+      new Date('2026-06-30T00:00:00.000Z'),
+      2
+    );
+
+    expect(c.fecha_vencimiento.toISOString()).toBe('2026-07-15T00:00:00.000Z');
   });
 });

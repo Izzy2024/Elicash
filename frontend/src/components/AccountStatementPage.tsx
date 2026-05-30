@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { apiService } from '../lib/api.service';
+import { getSuggestedPaymentAmount } from '../lib/payment-policy';
 import { useAuthStore } from '../hooks/useAuthStore';
 import { useOfflineQueue } from '../hooks/useOfflineQueue';
 import { SummaryCard, RiskBadge } from './ui/MorosoUI';
@@ -31,6 +32,13 @@ type Installment = {
   es_hoy: boolean;
   es_futuro: boolean;
   tiene_abono: boolean;
+  es_arrastre?: boolean;
+  monto_sugerido_cobro?: number;
+  capital_pendiente_cobro?: number;
+  interes_pendiente_cobro?: number;
+  mora_pendiente_cobro?: number;
+  total_exigible_cobro?: number;
+  interes_omitido_por_adelanto?: boolean;
   payments?: Payment[];
 };
 
@@ -89,7 +97,10 @@ export default function AccountStatementPage({ clientId: clientIdProp }: Account
   };
 
   const handleCobrarAdelantado = async (installment: Installment) => {
-    if (!confirm(`¿Desea registrar el pago de la cuota #${installment.numero} por ${symbol}${installment.saldo_pendiente.toLocaleString()}?`)) {
+    const montoSugerido = getSuggestedPaymentAmount(installment, client?.loans.find((loan) =>
+      loan.installments.some((inst) => inst.id === installment.id)
+    )?.frecuencia).montoSugerido;
+    if (!confirm(`¿Desea registrar el pago de la cuota #${installment.numero} por ${symbol}${montoSugerido.toLocaleString()}?`)) {
       return;
     }
 
@@ -97,7 +108,7 @@ export default function AccountStatementPage({ clientId: clientIdProp }: Account
     try {
       const paymentData = {
         installment_id: installment.id,
-        monto_pagado: installment.saldo_pendiente,
+        monto_pagado: montoSugerido,
         cobrador_id: user?.id,
         clientRequestId: self.crypto.randomUUID()
       };
@@ -335,6 +346,7 @@ export default function AccountStatementPage({ clientId: clientIdProp }: Account
                   <tbody className="divide-y divide-gray-50">
                     {loan.installments.map((inst) => {
                       const capitalTotal = inst.monto_cuota - inst.monto_interes;
+                      const moraPendiente = inst.mora_pendiente_cobro || 0;
                       
                       const getStatusBadge = () => {
                         if (inst.estado === 'pagada') {
@@ -378,9 +390,16 @@ export default function AccountStatementPage({ clientId: clientIdProp }: Account
                           );
                         }
                         return (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200 text-[10px] font-black uppercase tracking-wider">
-                            Pendiente
-                          </span>
+                          <div className="inline-flex gap-1">
+                            {inst.es_arrastre && (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-200 text-[10px] font-black uppercase tracking-wider">
+                                Arrastre
+                              </span>
+                            )}
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200 text-[10px] font-black uppercase tracking-wider">
+                              Pendiente
+                            </span>
+                          </div>
                         );
                       };
 
@@ -410,7 +429,7 @@ export default function AccountStatementPage({ clientId: clientIdProp }: Account
                             <td className="px-6 py-4 text-right text-slate-600 tabular-nums">
                               <span className="text-orange-600 font-medium">{symbol}{formatMoney(inst.mora_pagada || 0)}</span>
                               <span className="text-slate-300 mx-1">/</span>
-                              <span>{symbol}{formatMoney(inst.mora_pagada || 0)}</span>
+                              <span>{symbol}{formatMoney(moraPendiente)}</span>
                             </td>
                             <td className="px-6 py-4 text-right font-bold text-slate-900 tabular-nums">{symbol}{formatMoney(inst.saldo_pendiente)}</td>
                             <td className="px-6 py-4 text-center">
@@ -436,6 +455,17 @@ export default function AccountStatementPage({ clientId: clientIdProp }: Account
                               )}
                             </td>
                           </tr>
+                          {(moraPendiente > 0 || inst.es_arrastre || inst.interes_omitido_por_adelanto) && (
+                            <tr className="bg-slate-50/60">
+                              <td colSpan={9} className="px-6 py-2 text-[11px] text-slate-600">
+                                <div className="flex flex-wrap gap-3">
+                                  {moraPendiente > 0 && <span>Mora pendiente: <strong>{symbol}{formatMoney(moraPendiente)}</strong></span>}
+                                  {inst.es_arrastre && <span>Cuota generada por reprogramación de saldo.</span>}
+                                  {inst.interes_omitido_por_adelanto && <span>Interés omitido por pago adelantado en este período.</span>}
+                                </div>
+                              </td>
+                            </tr>
+                          )}
                           {/* Desglose de pagos expandible */}
                           {inst.payments && inst.payments.length > 0 && (
                             <tr className="bg-slate-50/30">

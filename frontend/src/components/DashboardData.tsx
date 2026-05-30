@@ -172,7 +172,7 @@ export default function DashboardData() {
         setData({
           cobrado: dia.cobradoPeriodo ?? dia.cobradoHoy,
           pendiente: dia.pendientePeriodo ?? dia.pendienteHoy,
-          mora: morosos.reduce((acc: number, m: any) => acc + m.saldo_pendiente, 0),
+          mora: morosos.reduce((acc: number, m: any) => acc + (m.total_exigible_cobro ?? m.saldo_pendiente ?? 0), 0),
           ganancia: ganancias.gananciaTotal,
           loading: false
         });

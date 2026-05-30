@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { prisma } from '../lib/prisma';
+import { calcularMontoSugeridoCobro, calcularMoraPendienteCobro } from '../services/payment-policy.service';
 import { LoanCalculatorService } from '../services/loan.service';
 import { ScoreService } from '../services/score.service';
 import { loanInputSchema, loanSimulateSchema } from '../validation/schemas';
@@ -112,6 +113,7 @@ export const getLoanById = async (req: Request, res: Response) => {
       where: { id },
       include: {
         client: true,
+        loanConfig: true,
         installments: {
           orderBy: { numero: 'asc' }
         }
@@ -121,7 +123,18 @@ export const getLoanById = async (req: Request, res: Response) => {
     if (!loan || loan.client.tenantId !== tenantId) {
       return res.status(404).json({ message: 'No encontrado' });
     }
-    res.json(loan);
+    res.json({
+      ...loan,
+      installments: loan.installments.map((inst) => ({
+        ...inst,
+        es_arrastre: inst.tipo === 'arrastre',
+        ...calcularMontoSugeridoCobro(
+          inst,
+          loan.frecuencia,
+          calcularMoraPendienteCobro(inst, loan.loanConfig?.tasa_mora_diaria || 0)
+        ),
+      })),
+    });
   } catch (error) {
     res.status(500).json({ message: 'Error al obtener préstamo' });
   }
@@ -134,7 +147,7 @@ export const getInstallments = async (req: Request, res: Response) => {
 
     const loan = await prisma.loan.findUnique({
       where: { id },
-      include: { client: true }
+      include: { client: true, loanConfig: true }
     });
 
     if (!loan || loan.client.tenantId !== tenantId) {
@@ -145,7 +158,15 @@ export const getInstallments = async (req: Request, res: Response) => {
       where: { loan_id: id },
       orderBy: { numero: 'asc' }
     });
-    res.json(installments);
+    res.json(installments.map((inst) => ({
+      ...inst,
+      es_arrastre: inst.tipo === 'arrastre',
+      ...calcularMontoSugeridoCobro(
+        inst,
+        loan.frecuencia,
+        calcularMoraPendienteCobro(inst, loan.loanConfig?.tasa_mora_diaria || 0)
+      ),
+    })));
   } catch (error) {
     res.status(500).json({ message: 'Error al obtener cuotas' });
   }

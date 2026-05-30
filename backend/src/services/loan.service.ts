@@ -1,9 +1,31 @@
 import { addDays, addWeeks, addMonths } from 'date-fns';
 
-function siguienteVencimiento(base: Date, frecuencia: string): Date {
+function siguienteCorteQuincenal(base: Date): Date {
+  const year = base.getUTCFullYear();
+  const month = base.getUTCMonth();
+  const day = base.getUTCDate();
+  const hour = base.getUTCHours();
+  const minute = base.getUTCMinutes();
+  const second = base.getUTCSeconds();
+  const millisecond = base.getUTCMilliseconds();
+  const ultimoDiaDelMes = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+  const segundoCorte = Math.min(30, ultimoDiaDelMes);
+
+  if (day < 15) {
+    return new Date(Date.UTC(year, month, 15, hour, minute, second, millisecond));
+  }
+
+  if (day < segundoCorte) {
+    return new Date(Date.UTC(year, month, segundoCorte, hour, minute, second, millisecond));
+  }
+
+  return new Date(Date.UTC(year, month + 1, 15, hour, minute, second, millisecond));
+}
+
+export function calcularSiguienteVencimiento(base: Date, frecuencia: string): Date {
   if (frecuencia === 'diaria') return addDays(base, 1);
   if (frecuencia === 'semanal') return addWeeks(base, 1);
-  if (frecuencia === 'quincenal') return addDays(base, 15);
+  if (frecuencia === 'quincenal') return siguienteCorteQuincenal(base);
   return addMonths(base, 1);
 }
 
@@ -23,7 +45,7 @@ export class LoanCalculatorService {
     let fechaActual = new Date(fechaInicio);
 
     for (let i = 1; i <= cuotas; i++) {
-       fechaActual = siguienteVencimiento(fechaActual, frecuencia);
+       fechaActual = calcularSiguienteVencimiento(fechaActual, frecuencia);
 
        table.push({
          numero: i,
@@ -50,7 +72,7 @@ export class LoanCalculatorService {
     let fechaActual = new Date(fechaInicio);
 
     for (let i = 1; i <= cuotas; i++) {
-      fechaActual = siguienteVencimiento(fechaActual, frecuencia);
+      fechaActual = calcularSiguienteVencimiento(fechaActual, frecuencia);
 
       const interesCuota = saldoPendiente * r;
       const capitalCuota = cuotaTotal - interesCuota;
@@ -81,7 +103,7 @@ export class LoanCalculatorService {
     frecuencia: string,
     fechaInicio: Date
   ) {
-    const fechaVencimiento = siguienteVencimiento(new Date(fechaInicio), frecuencia);
+    const fechaVencimiento = calcularSiguienteVencimiento(new Date(fechaInicio), frecuencia);
     const interes = Number((monto * (tasa / 100)).toFixed(2));
 
     return {
@@ -104,7 +126,7 @@ export class LoanCalculatorService {
     fechaUltimaCuota: Date,
     numeroCuota: number
   ) {
-    const fechaVencimiento = siguienteVencimiento(new Date(fechaUltimaCuota), frecuencia);
+    const fechaVencimiento = calcularSiguienteVencimiento(new Date(fechaUltimaCuota), frecuencia);
     const interes = Number((saldoCapital * (tasa / 100)).toFixed(2));
 
     return {

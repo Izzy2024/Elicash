@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { apiService } from '../lib/api.service';
+import { getSuggestedPaymentAmount } from '../lib/payment-policy';
 import { useAuthStore } from '../hooks/useAuthStore';
 import { useOfflineQueue } from '../hooks/useOfflineQueue';
 
@@ -8,10 +9,18 @@ type Installment = {
   numero: number;
   fecha_vencimiento: string;
   monto_cuota: number;
+  monto_interes: number;
   saldo_pendiente: number;
   estado: string;
   tipo?: string;
   cuota_origen_id?: string;
+  capital_pagado?: number;
+  interes_pagado?: number;
+  mora_pagada?: number;
+  es_arrastre?: boolean;
+  mora_pendiente_cobro?: number;
+  total_exigible_cobro?: number;
+  interes_omitido_por_adelanto?: boolean;
 };
 
 type Loan = {
@@ -59,7 +68,8 @@ export default function LoanDetailPage({ loanId: loanIdProp }: LoanDetailPagePro
   };
 
   const handleCobrar = async (installment: Installment) => {
-    if (!confirm(`¿Confirmar cobro de cuota #${installment.numero} por ${symbol}${installment.saldo_pendiente.toLocaleString()}?`)) {
+    const montoSugerido = getSuggestedPaymentAmount(installment, loan?.frecuencia).montoSugerido;
+    if (!confirm(`¿Confirmar cobro de cuota #${installment.numero} por ${symbol}${montoSugerido.toLocaleString()}?`)) {
       return;
     }
 
@@ -67,7 +77,7 @@ export default function LoanDetailPage({ loanId: loanIdProp }: LoanDetailPagePro
     try {
       const paymentData = {
         installment_id: installment.id,
-        monto_pagado: installment.saldo_pendiente,
+        monto_pagado: montoSugerido,
         cobrador_id: user?.id,
         clientRequestId: self.crypto.randomUUID()
       };
@@ -237,12 +247,23 @@ export default function LoanDetailPage({ loanId: loanIdProp }: LoanDetailPagePro
                   <p className="text-sm text-slate-500">
                     Cuota {installment.numero} de {loan.num_cuotas}
                   </p>
+                  {(installment.es_arrastre || (installment.mora_pendiente_cobro || 0) > 0) && (
+                    <p className="text-xs text-slate-400">
+                      {installment.es_arrastre ? 'Arrastre' : 'Normal'}
+                      {(installment.mora_pendiente_cobro || 0) > 0 ? ` • Mora ${symbol}${installment.mora_pendiente_cobro?.toFixed(2)}` : ''}
+                    </p>
+                  )}
                 </div>
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
                   <div className="text-left sm:text-right">
                     <p className={`font-bold text-slate-800 ${isPaid ? 'line-through' : isNext ? 'text-blue-600' : ''}`}>
                       {symbol}{installment.monto_cuota.toFixed(2)}
                     </p>
+                    {!isClosed && installment.total_exigible_cobro !== undefined && (
+                      <p className="text-[11px] text-slate-400">
+                        Exigible hoy: {symbol}{installment.total_exigible_cobro.toFixed(2)}
+                      </p>
+                    )}
                     <p
                       className={`text-xs font-bold ${
                         isPaid

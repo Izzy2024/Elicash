@@ -2,12 +2,21 @@ import { Request, Response } from 'express';
 import { prisma } from '../lib/prisma';
 import { startOfDay, endOfDay, startOfMonth, endOfMonth, subDays, parseISO, isValid, eachDayOfInterval, format } from 'date-fns';
 import { ExcelService } from '../services/excel.service';
+import { calcularMontoSugeridoCobro, calcularMoraPendienteCobro } from '../services/payment-policy.service';
 import { logger } from '../lib/logger';
 
 function parseDateParam(value?: string) {
   if (!value) return null;
   const parsed = parseISO(value);
   return isValid(parsed) ? parsed : null;
+}
+
+function sumarExigible(installments: Array<any>, referenceDate: Date) {
+  return installments.reduce((acc, inst) => {
+    const moraPendiente = calcularMoraPendienteCobro(inst, inst.loan?.loanConfig?.tasa_mora_diaria || 0, referenceDate);
+    const politica = calcularMontoSugeridoCobro(inst, inst.loan?.frecuencia, moraPendiente);
+    return acc + politica.total_exigible_cobro;
+  }, 0);
 }
 
 export const getDia = async (req: Request, res: Response) => {
@@ -37,7 +46,7 @@ export const getDia = async (req: Request, res: Response) => {
       _sum: { monto_pagado: true }
     });
 
-    const pendientePeriodo = await prisma.installment.aggregate({
+    const pendientePeriodoInstallments = await prisma.installment.findMany({
       where: {
         estado: 'pendiente',
         fecha_vencimiento: { gte: start, lte: end },
@@ -47,14 +56,20 @@ export const getDia = async (req: Request, res: Response) => {
           }
         }
       },
-      _sum: { saldo_pendiente: true }
+      include: {
+        loan: {
+          include: {
+            loanConfig: true
+          }
+        }
+      }
     });
 
     res.json({
       cobradoHoy: pagosPeriodo._sum.monto_pagado || 0,
-      pendienteHoy: pendientePeriodo._sum.saldo_pendiente || 0,
+      pendienteHoy: sumarExigible(pendientePeriodoInstallments, end),
       cobradoPeriodo: pagosPeriodo._sum.monto_pagado || 0,
-      pendientePeriodo: pendientePeriodo._sum.saldo_pendiente || 0
+      pendientePeriodo: sumarExigible(pendientePeriodoInstallments, end)
     });
   } catch (error) {
     res.status(500).json({ message: 'Error' });
@@ -211,7 +226,7 @@ export const exportExcelReport = async (req: Request, res: Response) => {
         },
         _sum: { monto_pagado: true }
       }),
-      prisma.installment.aggregate({
+      prisma.installment.findMany({
         where: {
           estado: 'pendiente',
           fecha_vencimiento: { gte: startFilter, lte: endFilter },
@@ -221,7 +236,13 @@ export const exportExcelReport = async (req: Request, res: Response) => {
             }
           }
         },
-        _sum: { saldo_pendiente: true }
+        include: {
+          loan: {
+            include: {
+              loanConfig: true
+            }
+          }
+        }
       }),
       prisma.loan.findMany({
         where: { 
@@ -271,7 +292,8 @@ export const exportExcelReport = async (req: Request, res: Response) => {
         include: {
           loan: {
             include: {
-              client: true
+              client: true,
+              loanConfig: true
             }
           }
         },
@@ -315,7 +337,7 @@ export const exportExcelReport = async (req: Request, res: Response) => {
       currencySymbol: tenant?.symbol || '$',
       resumen: {
         cobradoHoy: pagosPeriodoResumen._sum.monto_pagado || 0,
-        pendienteHoy: pendientePeriodoResumen._sum.saldo_pendiente || 0,
+        pendienteHoy: sumarExigible(pendientePeriodoResumen, endFilter),
         totalPrestado,
         totalRecuperado,
         gananciaMes: gananciaPeriodo._sum.monto_a_interes || 0
@@ -327,7 +349,11 @@ export const exportExcelReport = async (req: Request, res: Response) => {
         prestamoId: inst.loan.id,
         cuotaNumero: inst.numero,
         fechaVencimiento: inst.fecha_vencimiento,
-        saldoPendiente: inst.saldo_pendiente,
+        saldoPendiente: calcularMontoSugeridoCobro(
+          inst,
+          inst.loan.frecuencia,
+          calcularMoraPendienteCobro(inst, inst.loan.loanConfig?.tasa_mora_diaria || 0, today)
+        ).total_exigible_cobro,
         diasVencido: Math.floor((startOfDay(today).getTime() - inst.fecha_vencimiento.getTime()) / (1000 * 60 * 60 * 24))
       })),
       pagosMes: pagosPeriodo.map((pago) => ({

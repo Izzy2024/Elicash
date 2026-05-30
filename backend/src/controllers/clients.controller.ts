@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { Prisma } from '../../generated/prisma';
 import { prisma } from '../lib/prisma';
+import { calcularMontoSugeridoCobro, calcularMoraPendienteCobro } from '../services/payment-policy.service';
 import { createClientSchema } from '../validation/schemas';
 import { logger } from '../lib/logger';
 
@@ -38,7 +39,8 @@ export const getClientById = async (req: Request, res: Response) => {
                   orderBy: { fecha_pago: 'asc' }
                 }
               }
-            }
+            },
+            loanConfig: true
           },
           orderBy: { fecha_inicio: 'desc' }
         }
@@ -66,6 +68,12 @@ export const getClientById = async (req: Request, res: Response) => {
             es_hoy: diasVencido === 0 && inst.estado !== 'pagada',
             es_futuro: diasVencido < 0 && inst.estado !== 'pagada',
             tiene_abono: (inst.capital_pagado || 0) > 0 || (inst.interes_pagado || 0) > 0,
+            es_arrastre: inst.tipo === 'arrastre',
+            ...calcularMontoSugeridoCobro(
+              inst,
+              loan.frecuencia,
+              calcularMoraPendienteCobro(inst, loan.loanConfig?.tasa_mora_diaria || 0)
+            ),
           };
         }),
       })),

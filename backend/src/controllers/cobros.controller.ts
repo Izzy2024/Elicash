@@ -1,9 +1,11 @@
 import { Request, Response } from 'express';
 import type { Installment, Prisma } from '../../generated/prisma';
 import { prisma } from '../lib/prisma';
-import { addDays, addMonths, addWeeks, endOfDay, startOfDay } from 'date-fns';
+import { endOfDay, startOfDay } from 'date-fns';
 import { ScoreService } from '../services/score.service';
 import { PaymentDistributionService } from '../services/payment-distribution.service';
+import { calcularMontoSugeridoCobro, calcularMoraPendienteCobro, debeOmitirInteresPorPagoAdelantado } from '../services/payment-policy.service';
+import { calcularSiguienteVencimiento } from '../services/loan.service';
 import { registerPaymentSchema } from '../validation/schemas';
 import { logger } from '../lib/logger';
 
@@ -28,7 +30,8 @@ export const getMorosos = async (req: Request, res: Response) => {
       include: {
         loan: {
           include: {
-            client: true
+            client: true,
+            loanConfig: true
           }
         }
       },
@@ -39,6 +42,7 @@ export const getMorosos = async (req: Request, res: Response) => {
 
     const morosos = installments.map((inst) => {
       const diasVencido = Math.floor((today.getTime() - inst.fecha_vencimiento.getTime()) / (1000 * 60 * 60 * 24));
+      const moraPendiente = calcularMoraPendiente(inst, inst.loan.loanConfig?.tasa_mora_diaria || 0);
       return {
         installmentId: inst.id,
         numero: inst.numero,
@@ -46,6 +50,8 @@ export const getMorosos = async (req: Request, res: Response) => {
         saldo_pendiente: inst.saldo_pendiente,
         fecha_vencimiento: inst.fecha_vencimiento,
         diasVencido,
+        es_arrastre: inst.tipo === 'arrastre',
+        ...calcularMontoSugeridoCobro(inst, inst.loan.frecuencia, moraPendiente),
         loan: {
           id: inst.loan.id,
           monto: inst.loan.monto,
@@ -117,7 +123,8 @@ export const getCobrosHoy = async (req: Request, res: Response) => {
       include: {
         loan: {
           include: {
-            client: true
+            client: true,
+            loanConfig: true
           }
         }
       },
@@ -134,6 +141,8 @@ export const getCobrosHoy = async (req: Request, res: Response) => {
       const esHoy = diasVencido === 0;
       const esFuturo = diasVencido < 0;
       const tieneAbono = (inst.capital_pagado || 0) > 0 || (inst.interes_pagado || 0) > 0;
+      const moraPendiente = calcularMoraPendiente(inst, inst.loan.loanConfig?.tasa_mora_diaria || 0);
+      const politicaCobro = calcularMontoSugeridoCobro(inst, inst.loan.frecuencia, moraPendiente);
 
       return {
         ...inst,
@@ -141,7 +150,9 @@ export const getCobrosHoy = async (req: Request, res: Response) => {
         es_mora: esMora,
         es_hoy: esHoy,
         es_futuro: esFuturo,
-        tiene_abono: tieneAbono
+        tiene_abono: tieneAbono,
+        es_arrastre: inst.tipo === 'arrastre',
+        ...politicaCobro
       };
     });
 
@@ -177,7 +188,8 @@ export const registerPayment = async (req: Request, res: Response) => {
       include: {
         loan: {
           include: {
-            client: true
+            client: true,
+            loanConfig: true
           }
         }
       }
@@ -198,7 +210,8 @@ export const registerPayment = async (req: Request, res: Response) => {
     const omitirInteresAdelantado = debeOmitirInteresPorPagoAdelantado(
       installment.fecha_vencimiento,
       installment.loan.frecuencia,
-      !!distribucion_manual
+      !!distribucion_manual,
+      installment.numero
     );
 
     // Calcular distribución (el waterfall funciona igual para ambos tipos)
@@ -410,18 +423,7 @@ export const registerPayment = async (req: Request, res: Response) => {
 };
 
 function calcularProximoVencimiento(fechaBase: Date, frecuencia: string): Date {
-  switch (frecuencia) {
-    case 'diaria':
-      return addDays(fechaBase, 1);
-    case 'semanal':
-      return addWeeks(fechaBase, 1);
-    case 'quincenal':
-      return addDays(fechaBase, 15);
-    case 'mensual':
-      return addMonths(fechaBase, 1);
-    default:
-      return addDays(fechaBase, 1);
-  }
+  return calcularSiguienteVencimiento(fechaBase, frecuencia);
 }
 
 /**
@@ -452,7 +454,9 @@ async function aplicarExcedenteASiguienteCuota(
 
   const omitirInteresAdelantado = debeOmitirInteresPorPagoAdelantado(
     siguienteCuota.fecha_vencimiento,
-    siguienteCuota.loan.frecuencia
+    siguienteCuota.loan.frecuencia,
+    false,
+    siguienteCuota.numero
   );
   const dist = PaymentDistributionService.calcularDistribucion(
     excedente,
@@ -524,33 +528,7 @@ async function aplicarExcedenteASiguienteCuota(
 }
 
 function calcularMoraPendiente(installment: Installment, tasaMoraDiaria: number): number {
-  if (!tasaMoraDiaria || tasaMoraDiaria <= 0) return 0;
-
-  const now = startOfDay(new Date());
-  const vencimiento = startOfDay(new Date(installment.fecha_vencimiento));
-  const diasVencido = Math.max(0, Math.floor((now.getTime() - vencimiento.getTime()) / (1000 * 60 * 60 * 24)));
-  if (diasVencido <= 0) return 0;
-
-  const saldoBase = Math.max(
-    0,
-    (installment.monto_cuota - installment.monto_interes) - (installment.capital_pagado || 0)
-      + Math.max(0, installment.monto_interes - (installment.interes_pagado || 0))
-  );
-
-  return Number((saldoBase * (tasaMoraDiaria / 100) * diasVencido).toFixed(2));
-}
-
-function debeOmitirInteresPorPagoAdelantado(
-  fechaVencimiento: Date,
-  frecuencia?: string,
-  distribucionManual: boolean = false
-): boolean {
-  if (distribucionManual) return false;
-  if (frecuencia !== 'quincenal' && frecuencia !== 'mensual') return false;
-
-  const hoy = startOfDay(new Date());
-  const vencimiento = startOfDay(new Date(fechaVencimiento));
-  return vencimiento.getTime() > hoy.getTime();
+  return calcularMoraPendienteCobro(installment, tasaMoraDiaria);
 }
 
 async function reprogramarCuota(

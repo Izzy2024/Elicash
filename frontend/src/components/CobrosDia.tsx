@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { apiService } from '../lib/api.service';
+import { getSuggestedPaymentAmount } from '../lib/payment-policy';
 import { useAuthStore } from '../hooks/useAuthStore';
 import { useOfflineQueue } from '../hooks/useOfflineQueue';
 
@@ -74,9 +75,13 @@ export default function CobrosDia() {
     setProcessing(installmentId);
 
     try {
-      const monto = customAmount ? parseFloat(customAmount) : cobro.saldo_pendiente;
+      const politicaCobro = getSuggestedPaymentAmount(cobro, cobro.loan?.frecuencia);
+      const montoSugerido = politicaCobro.montoSugerido;
+      const monto = customAmount ? parseFloat(customAmount) : montoSugerido;
 
-      if (isNaN(monto) || monto <= 0 || monto > cobro.saldo_pendiente) {
+      const maximoPermitido = Math.max(cobro.total_exigible_cobro || 0, cobro.saldo_pendiente || 0, montoSugerido);
+
+      if (isNaN(monto) || monto <= 0 || monto > maximoPermitido) {
         alert('Monto inválido');
         setProcessing(null);
         return;
@@ -178,27 +183,24 @@ export default function CobrosDia() {
 
   const calcularPreviewDistribucion = (cobro: any, monto: number) => {
     if (!monto || monto <= 0) return null;
-    const interesTotal = cobro.monto_interes || 0;
-    const capitalTotal = (cobro.monto_cuota || 0) - interesTotal;
-    const interesPagado = cobro.interes_pagado || 0;
-    const capitalPagado = cobro.capital_pagado || 0;
-    const esFuturo = new Date(cobro.fecha_vencimiento).setHours(0, 0, 0, 0) > new Date().setHours(0, 0, 0, 0);
-    const frecuencia = cobro.loan?.frecuencia;
-    const omiteInteresAdelantado = esFuturo && (frecuencia === 'quincenal' || frecuencia === 'mensual');
-
-    const interesRestante = omiteInteresAdelantado ? 0 : Math.max(0, interesTotal - interesPagado);
-    const aInteres = Math.min(monto, interesRestante);
-    const restante = monto - aInteres;
-    const capitalRestante = Math.max(0, capitalTotal - capitalPagado);
-    const aCapital = Math.min(restante, capitalRestante);
+    const { capitalPendiente, interesPendiente, moraPendiente, omiteInteresAdelantado } = getSuggestedPaymentAmount(
+      cobro,
+      cobro.loan?.frecuencia
+    );
+    const totalExigible = capitalPendiente + interesPendiente + moraPendiente;
+    const aMora = Math.min(monto, moraPendiente);
+    const restanteTrasMora = monto - aMora;
+    const aInteres = Math.min(restanteTrasMora, interesPendiente);
+    const restante = restanteTrasMora - aInteres;
+    const aCapital = Math.min(restante, capitalPendiente);
     const excedente = restante - aCapital;
 
     return {
       aCapital,
       aInteres,
-      aMora: 0,
+      aMora,
       excedente,
-      saldoRestante: Math.max(0, (cobro.saldo_pendiente || 0) - monto),
+      saldoRestante: Math.max(0, totalExigible - Math.min(monto, totalExigible)),
       omiteInteresAdelantado
     };
   };
@@ -397,6 +399,11 @@ export default function CobrosDia() {
                     <span>Capital: {symbol}{formatMoney(cobro.capital_pagado || 0)}/{formatMoney((cobro.monto_cuota || 0) - (cobro.monto_interes || 0))}</span>
                     <span>Int: {symbol}{formatMoney(cobro.interes_pagado || 0)}/{formatMoney(cobro.monto_interes || 0)}</span>
                   </div>
+                  {(cobro.mora_pendiente_cobro || 0) > 0 && (
+                    <p className="mb-1 text-xs font-bold text-orange-600">
+                      Mora pendiente: {symbol}{formatMoney(cobro.mora_pendiente_cobro || 0)}
+                    </p>
+                  )}
                   <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
                     <div
                       className="h-full bg-blue-400 rounded-full transition-all"
@@ -417,7 +424,7 @@ export default function CobrosDia() {
                           <span className="text-slate-400 mr-1">{symbol}</span>
                           <input
                             type="number"
-                            placeholder={cobro.saldo_pendiente.toLocaleString()}
+                            placeholder={formatMoney(getSuggestedPaymentAmount(cobro, cobro.loan?.frecuencia).montoSugerido)}
                             value={customAmount}
                             onChange={(e) => setCustomAmount(e.target.value)}
                             className="bg-transparent w-full focus:outline-none font-bold text-slate-700"
@@ -436,12 +443,19 @@ export default function CobrosDia() {
                         <div className="bg-blue-50 border border-blue-100 rounded-lg p-3 text-sm">
                           <p className="font-semibold text-blue-800 mb-1">Distribución automática:</p>
                           <div className="grid grid-cols-2 gap-2 text-blue-700">
+                            <span>A mora: {symbol}{formatMoney(preview.aMora)}</span>
                             <span>A capital: {symbol}{formatMoney(preview.aCapital)}</span>
                             <span>A interés: {symbol}{formatMoney(preview.aInteres)}</span>
+                            <span>Total exigible: {symbol}{formatMoney(cobro.total_exigible_cobro || preview.aMora + preview.aCapital + preview.aInteres)}</span>
                           </div>
                           {preview.omiteInteresAdelantado && (
                             <p className="mt-2 rounded-lg bg-emerald-100 px-2 py-1 text-xs font-bold text-emerald-700">
                               Pago adelantado: el interés de esta cuota futura no se cobra.
+                            </p>
+                          )}
+                          {cobro.es_arrastre && (
+                            <p className="mt-2 rounded-lg bg-amber-100 px-2 py-1 text-xs font-bold text-amber-700">
+                              Esta cuota es un arrastre de un saldo reprogramado.
                             </p>
                           )}
                           {preview.excedente > 0 && (
@@ -570,7 +584,11 @@ export default function CobrosDia() {
                         </a>
                       )}
                       <button
-                        onClick={() => { setConfirmId(cobro.id); setCustomAmount(cobro.saldo_pendiente.toString()); }}
+                        onClick={() => {
+                          const montoSugerido = getSuggestedPaymentAmount(cobro, cobro.loan?.frecuencia).montoSugerido;
+                          setConfirmId(cobro.id);
+                          setCustomAmount(montoSugerido.toString());
+                        }}
                         className="h-10 px-4 bg-blue-500 text-white rounded-full flex items-center gap-2 hover:bg-blue-600 transition-colors shadow-sm font-bold text-sm"
                       >
                         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
