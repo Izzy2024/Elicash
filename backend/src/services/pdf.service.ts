@@ -338,7 +338,7 @@ export class PDFService {
 
       sectionTitle(doc, 'Resumen general');
       const colRes = [140, 120, 130, 100];
-      tableRow(doc, ['Total prestado', 'Total pagado', 'Saldo pendiente', 'En mora'],
+      tableRow(doc, ['Total prestado', 'Total pagado', 'Exigible actual', 'En mora'],
         colRes, doc.page.margins.left, doc.y, { bold: true, fill: '#e2e8f0' });
       doc.y += 14;
       tableRow(doc,
@@ -440,7 +440,7 @@ export class PDFService {
 
         // Subtotales
         tableRow(doc,
-          ['', 'SUBTOTAL', '', fmt(lCap, sym), fmt(lInt, sym), fmt(lMor, sym), fmt(lCap + lInt + lMor, sym), ''],
+          ['', 'SUBTOTAL', '', fmt(lCap, sym), fmt(lInt, sym), fmt(lMor, sym), '', fmt(lCap + lInt + lMor, sym), ''],
           cw, doc.page.margins.left, doc.y, { bold: true, fill: '#e2e8f0' });
         doc.y += 18;
       }

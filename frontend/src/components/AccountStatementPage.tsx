@@ -150,8 +150,8 @@ export default function AccountStatementPage({ clientId: clientIdProp }: Account
     if (!client?.loans) return 0;
     return client.loans.reduce((total, loan) => {
       const pendingAmount = loan.installments
-        .filter((inst) => inst.estado !== 'pagada')
-        .reduce((sum, inst) => sum + inst.saldo_pendiente, 0);
+        .filter((inst) => inst.estado !== 'pagada' && inst.estado !== 'reprogramada')
+        .reduce((sum, inst) => sum + (inst.total_exigible_cobro ?? inst.saldo_pendiente), 0);
       return total + pendingAmount;
     }, 0);
   };
@@ -247,7 +247,7 @@ export default function AccountStatementPage({ clientId: clientIdProp }: Account
           colorClass="text-emerald-500" 
         />
         <SummaryCard 
-          label="Saldo Pendiente" 
+          label="Exigible Actual" 
           value={`${symbol}${getTotalDebt().toLocaleString()}`} 
           colorClass="text-red-500" 
         />
@@ -263,8 +263,8 @@ export default function AccountStatementPage({ clientId: clientIdProp }: Account
 
         {client.loans.map((loan) => {
           const loanDebt = loan.installments
-            .filter((inst) => inst.estado !== 'pagada')
-            .reduce((sum, inst) => sum + inst.saldo_pendiente, 0);
+            .filter((inst) => inst.estado !== 'pagada' && inst.estado !== 'reprogramada')
+            .reduce((sum, inst) => sum + (inst.total_exigible_cobro ?? inst.saldo_pendiente), 0);
 
           const paidCount = loan.installments.filter((i) => ['pagada', 'reprogramada'].includes(i.estado)).length;
           const totalCount = loan.installments.length;
@@ -322,7 +322,7 @@ export default function AccountStatementPage({ clientId: clientIdProp }: Account
                     <p className="font-bold text-slate-800 tabular-nums">{loan.num_cuotas}</p>
                   </div>
                   <div>
-                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Por Cobrar</span>
+                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Exigible Actual</span>
                     <p className="font-bold text-red-600 tabular-nums">{symbol}{loanDebt.toLocaleString()}</p>
                   </div>
                 </div>
@@ -338,7 +338,7 @@ export default function AccountStatementPage({ clientId: clientIdProp }: Account
                     <th className="px-6 py-3 text-right font-bold text-slate-400 uppercase text-[10px] tracking-wider">Capital</th>
                     <th className="px-6 py-3 text-right font-bold text-slate-400 uppercase text-[10px] tracking-wider">Interés</th>
                     <th className="px-6 py-3 text-right font-bold text-slate-400 uppercase text-[10px] tracking-wider">Mora</th>
-                    <th className="px-6 py-3 text-right font-bold text-slate-400 uppercase text-[10px] tracking-wider">Saldo</th>
+                    <th className="px-6 py-3 text-right font-bold text-slate-400 uppercase text-[10px] tracking-wider">Exigible</th>
                     <th className="px-6 py-3 text-center font-bold text-slate-400 uppercase text-[10px] tracking-wider">Estado</th>
                     <th className="px-6 py-3 text-right font-bold text-slate-400 uppercase text-[10px] tracking-wider">Acción</th>
                     </tr>
@@ -431,7 +431,9 @@ export default function AccountStatementPage({ clientId: clientIdProp }: Account
                               <span className="text-slate-300 mx-1">/</span>
                               <span>{symbol}{formatMoney(moraPendiente)}</span>
                             </td>
-                            <td className="px-6 py-4 text-right font-bold text-slate-900 tabular-nums">{symbol}{formatMoney(inst.saldo_pendiente)}</td>
+                            <td className="px-6 py-4 text-right font-bold text-slate-900 tabular-nums">
+                              {symbol}{formatMoney(inst.total_exigible_cobro ?? inst.saldo_pendiente)}
+                            </td>
                             <td className="px-6 py-4 text-center">
                               {getStatusBadge()}
                             </td>
