@@ -88,17 +88,11 @@ export default function DashboardData() {
         return;
       }
 
-      const token = typeof window !== 'undefined' ? localStorage.getItem('elicash_token') : null;
-      const headers: HeadersInit = {};
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
-
+      const apiUrl = import.meta.env.PUBLIC_API_URL || (import.meta.env.DEV ? 'http://localhost:4000' : '');
       const response = await fetch(
-        `${import.meta.env.PUBLIC_API_URL || 'http://localhost:4000'}/api/reportes/excel?${buildDateQuery(range)}`,
+        `${apiUrl}/api/reportes/excel?${buildDateQuery(range)}`,
         {
-          credentials: 'include',
-          headers
+          credentials: 'include'
         }
       );
 

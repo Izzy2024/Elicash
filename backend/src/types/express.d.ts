@@ -4,6 +4,10 @@ export interface AuthenticatedUser {
   role: string;
 }
 
+export interface AuthTokenPayload extends AuthenticatedUser {
+  tokenVersion?: number;
+}
+
 declare global {
   namespace Express {
     interface Request {

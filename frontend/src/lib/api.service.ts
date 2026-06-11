@@ -1,16 +1,13 @@
-// Simple API service for basic operations
-const API_URL = import.meta.env.PUBLIC_API_URL || 'http://localhost:4000';
+// Simple API service for basic operations.
+// Auth relies solely on the httpOnly cookie; in production the API is reached
+// same-origin through the Netlify proxy (see netlify.toml), so no token is
+// ever exposed to JavaScript.
+const API_URL = import.meta.env.PUBLIC_API_URL || (import.meta.env.DEV ? 'http://localhost:4000' : '');
 
 class SimpleAPIService {
-  private getStoredToken(): string | null {
-    return typeof window !== 'undefined' ? localStorage.getItem('elicash_token') : null;
-  }
-
   private getHeaders(contentType = 'application/json'): HeadersInit {
     const headers: Record<string, string> = {};
     if (contentType) headers['Content-Type'] = contentType;
-    const token = this.getStoredToken();
-    if (token) headers['Authorization'] = `Bearer ${token}`;
     return headers;
   }
 

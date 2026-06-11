@@ -41,7 +41,7 @@ export const login = async (req: Request, res: Response) => {
     }
 
     const token = jwt.sign(
-      { userId: user.id, tenantId: user.tenantId, role: user.role.name },
+      { userId: user.id, tenantId: user.tenantId, role: user.role.name, tokenVersion: user.tokenVersion },
       JWT_SECRET,
       { expiresIn: '7d' }
     );
@@ -49,7 +49,6 @@ export const login = async (req: Request, res: Response) => {
     res.cookie('token', token, authCookieOptions);
 
     res.json({
-      token,
       user: {
         id: user.id,
         email: user.email,
@@ -233,9 +232,10 @@ export const resetPassword = async (req: Request, res: Response) => {
 
     const hashedPassword = await bcrypt.hash(newPassword, bcryptRounds);
 
+    // Bump tokenVersion so every JWT issued before the reset stops working.
     await prisma.user.update({
       where: { id: decoded.userId },
-      data: { password: hashedPassword }
+      data: { password: hashedPassword, tokenVersion: { increment: 1 } }
     });
 
     return res.status(200).json({ message: 'Contraseña actualizada correctamente' });

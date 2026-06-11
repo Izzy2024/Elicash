@@ -1,8 +1,20 @@
 import { z } from 'zod';
 
-const nonEmptyString = z.string().trim().min(1);
-const optionalString = z.string().trim().optional();
-const optionalNullableString = z.string().trim().optional().nullable();
+const nonEmptyString = z.string().trim().min(1).max(300);
+const optionalString = z.string().trim().max(500).optional();
+const optionalNullableString = z.string().trim().max(500).optional().nullable();
+// Only allow http(s) URLs or inline images; blocks javascript:/data:text payloads
+// that would execute when the stored value is rendered as an <img>/link.
+// data:image can be a base64 photo, so its cap is the JSON body limit, not 2000.
+const optionalImageUrl = z.string().trim().max(150_000)
+  .refine((value) =>
+    value === '' ||
+    /^data:image\//i.test(value) ||
+    (value.length <= 2000 && /^https?:\/\//i.test(value)), {
+    message: 'URL de imagen inválida'
+  })
+  .optional()
+  .nullable();
 const moneyAmount = z.number().positive().max(1_000_000_000_000);
 const interestRate = z.number().nonnegative().max(1_000);
 const installmentCount = z.number().int().positive().max(600);
@@ -17,17 +29,17 @@ const guarantorSchema = z.object({
   nombre: nonEmptyString,
   cedula: nonEmptyString,
   telefono: nonEmptyString,
-  foto_url: optionalNullableString
+  foto_url: optionalImageUrl
 });
 
 export const loginSchema = z.object({
   email: z.email().trim(),
-  password: nonEmptyString
+  password: z.string().min(1).max(128)
 });
 
 export const registerSchema = z.object({
   email: z.email().trim(),
-  password: z.string().min(6),
+  password: z.string().min(6).max(128),
   name: nonEmptyString,
   tenantName: optionalString,
   inviteCode: optionalString
@@ -38,8 +50,8 @@ export const forgotPasswordSchema = z.object({
 });
 
 export const resetPasswordSchema = z.object({
-  token: nonEmptyString,
-  newPassword: z.string().min(6)
+  token: z.string().trim().min(1).max(2000),
+  newPassword: z.string().min(6).max(128)
 });
 
 export const createClientSchema = z.object({
@@ -47,10 +59,10 @@ export const createClientSchema = z.object({
   cedula: nonEmptyString,
   direccion: optionalString,
   telefono: nonEmptyString,
-  foto_url: optionalNullableString,
+  foto_url: optionalImageUrl,
   ruta_id: optionalNullableString,
-  references: z.array(referenceSchema).optional(),
-  guarantors: z.array(guarantorSchema).optional()
+  references: z.array(referenceSchema).max(20).optional(),
+  guarantors: z.array(guarantorSchema).max(20).optional()
 });
 
 const loanBaseSchema = z.object({
@@ -72,6 +84,13 @@ export const loanInputSchema = loanBaseSchema.refine(cuotasRefine, cuotasRefineM
 
 export const loanSimulateSchema = loanBaseSchema.omit({ client_id: true }).refine(cuotasRefine, cuotasRefineMsg);
 
+export const updateProfileSchema = z.object({
+  userName: z.string().trim().min(1).max(300).optional(),
+  tenantName: z.string().trim().min(1).max(300).optional(),
+  currency: z.string().trim().min(1).max(10).optional(),
+  symbol: z.string().trim().min(1).max(5).optional()
+});
+
 export const registerPaymentSchema = z.object({
   installment_id: nonEmptyString,
   monto_pagado: z.number().positive(),
@@ -81,5 +100,5 @@ export const registerPaymentSchema = z.object({
     interes: z.number().nonnegative(),
     mora: z.number().nonnegative()
   }).optional(),
-  foto_recibo: optionalNullableString
+  foto_recibo: optionalImageUrl
 });

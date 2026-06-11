@@ -6,7 +6,27 @@
 [build.environment]
   NODE_VERSION = "22"
 
+# Proxy the API through Netlify so the browser sees it as same-origin:
+# the auth cookie stays first-party (works in Safari/iOS) and SameSite=strict holds.
+# IMPORTANTE: reemplaza la URL por la de tu backend en Railway antes de desplegar,
+# y elimina la variable PUBLIC_API_URL del entorno de Netlify.
+[[redirects]]
+  from   = "/api/*"
+  to     = "https://REEMPLAZA-CON-TU-BACKEND.up.railway.app/api/:splat"
+  status = 200
+  force  = true
+
 [[redirects]]
   from   = "/*"
   to     = "/index.html"
   status = 200
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "camera=(), microphone=(), geolocation=()"
+    Strict-Transport-Security = "max-age=31536000; includeSubDomains"
+    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"

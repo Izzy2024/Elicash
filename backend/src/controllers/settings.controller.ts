@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { prisma } from '../lib/prisma';
+import { updateProfileSchema } from '../validation/schemas';
 
 export const getProfile = async (req: Request, res: Response) => {
   try {
@@ -19,7 +20,7 @@ export const getProfile = async (req: Request, res: Response) => {
 export const updateProfile = async (req: Request, res: Response) => {
   try {
     const { userId, tenantId } = req.user!;
-    const { userName, tenantName, currency, symbol } = req.body;
+    const { userName, tenantName, currency, symbol } = updateProfileSchema.parse(req.body);
 
     await prisma.$transaction(async (tx) => {
       if (userName) {
@@ -33,9 +34,9 @@ export const updateProfile = async (req: Request, res: Response) => {
         await tx.tenant.update({
           where: { id: tenantId },
           data: {
-            name: tenantName,
-            currency,
-            symbol
+            ...(tenantName ? { name: tenantName } : {}),
+            ...(currency ? { currency } : {}),
+            ...(symbol ? { symbol } : {})
           }
         });
       }
@@ -43,6 +44,10 @@ export const updateProfile = async (req: Request, res: Response) => {
 
     res.json({ message: 'Perfil actualizado correctamente' });
   } catch (error) {
+    if (error instanceof Error && 'issues' in error) {
+      return res.status(400).json({ message: 'Datos de perfil inválidos' });
+    }
+
     res.status(500).json({ message: 'Error al actualizar perfil' });
   }
 };

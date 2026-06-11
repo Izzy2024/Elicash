@@ -1,11 +1,12 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { getJwtSecret } from '../config/env';
-import type { AuthenticatedUser } from '../types/express';
+import { prisma } from '../lib/prisma';
+import type { AuthTokenPayload } from '../types/express';
 
 const JWT_SECRET = getJwtSecret();
 
-export const authMiddleware = (req: Request, res: Response, next: NextFunction) => {
+export const authMiddleware = async (req: Request, res: Response, next: NextFunction) => {
   const token = req.cookies?.token ||
     req.headers.authorization?.replace(/^Bearer\s+/i, '');
 
@@ -14,10 +15,20 @@ export const authMiddleware = (req: Request, res: Response, next: NextFunction) 
   }
 
   try {
-    const decoded = jwt.verify(token, JWT_SECRET) as Partial<AuthenticatedUser>;
+    const decoded = jwt.verify(token, JWT_SECRET) as Partial<AuthTokenPayload>;
 
     if (!decoded.userId || !decoded.tenantId || !decoded.role) {
       return res.status(401).json({ message: 'Token inválido o incompleto' });
+    }
+
+    // Reject tokens issued before the user's last password reset (or for deleted users).
+    const user = await prisma.user.findUnique({
+      where: { id: decoded.userId },
+      select: { tokenVersion: true }
+    });
+
+    if (!user || (decoded.tokenVersion ?? 0) !== user.tokenVersion) {
+      return res.status(401).json({ message: 'Sesión expirada. Inicia sesión de nuevo.' });
     }
 
     req.user = {
