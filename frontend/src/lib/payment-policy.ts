@@ -48,7 +48,6 @@ export function getSuggestedPaymentAmount(installment: InstallmentLike, frecuenc
   const capitalTotal = Math.max(0, (installment.monto_cuota || 0) - (installment.monto_interes || 0));
   const capitalPagado = installment.capital_pagado || 0;
   const interesPagado = installment.interes_pagado || 0;
-  const moraPagada = installment.mora_pagada || 0;
   const omiteInteresAdelantado = shouldOmitFutureInterest(
     installment.numero,
     installment.fecha_vencimiento,
@@ -59,7 +58,9 @@ export function getSuggestedPaymentAmount(installment: InstallmentLike, frecuenc
   const interesPendiente = omiteInteresAdelantado
     ? 0
     : Math.max(0, (installment.monto_interes || 0) - interesPagado);
-  const moraPendiente = Math.max(0, moraPagada > 0 ? 0 : 0);
+  // No se puede calcular la mora real en el cliente: requiere tasa_mora_diaria,
+  // que solo vive en el backend (loanConfig) y nunca viaja en este objeto.
+  const moraPendiente = 0;
   const montoSugerido = Number((capitalPendiente + interesPendiente + moraPendiente).toFixed(2));
 
   return {

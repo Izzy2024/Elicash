@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { calcularMontoSugeridoCobro, debeOmitirInteresPorPagoAdelantado } from '../services/payment-policy.service';
+import { calcularMontoSugeridoCobro, calcularMoraPendienteCobro, debeOmitirInteresPorPagoAdelantado } from '../services/payment-policy.service';
 
 describe('debeOmitirInteresPorPagoAdelantado', () => {
   it('cobra interés en la primera cuota aunque el pago sea antes del vencimiento', () => {
@@ -82,5 +82,46 @@ describe('calcularMontoSugeridoCobro', () => {
     expect(result.mora_pendiente_cobro).toBe(55);
     expect(result.total_exigible_cobro).toBe(1155);
     expect(result.monto_sugerido_cobro).toBe(1155);
+  });
+});
+
+describe('calcularMoraPendienteCobro', () => {
+  it('descuenta la mora ya abonada de la mora acumulada', () => {
+    vi.setSystemTime(new Date('2026-06-20T12:00:00.000Z'));
+
+    const moraSinAbonos = calcularMoraPendienteCobro({
+      fecha_vencimiento: new Date('2026-06-15T00:00:00.000Z'),
+      monto_cuota: 1100,
+      monto_interes: 100,
+      capital_pagado: 0,
+      interes_pagado: 0,
+      mora_pagada: 0,
+    }, 1);
+
+    const moraConAbonoParcial = calcularMoraPendienteCobro({
+      fecha_vencimiento: new Date('2026-06-15T00:00:00.000Z'),
+      monto_cuota: 1100,
+      monto_interes: 100,
+      capital_pagado: 0,
+      interes_pagado: 0,
+      mora_pagada: 30,
+    }, 1);
+
+    expect(moraConAbonoParcial).toBe(Number((moraSinAbonos - 30).toFixed(2)));
+  });
+
+  it('no queda negativa si la mora abonada supera la mora acumulada', () => {
+    vi.setSystemTime(new Date('2026-06-20T12:00:00.000Z'));
+
+    const mora = calcularMoraPendienteCobro({
+      fecha_vencimiento: new Date('2026-06-15T00:00:00.000Z'),
+      monto_cuota: 1100,
+      monto_interes: 100,
+      capital_pagado: 0,
+      interes_pagado: 0,
+      mora_pagada: 999999,
+    }, 1);
+
+    expect(mora).toBe(0);
   });
 });

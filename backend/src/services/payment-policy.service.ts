@@ -46,7 +46,7 @@ export function calcularMontoSugeridoCobro(
 }
 
 export function calcularMoraPendienteCobro(
-  installment: Pick<Installment, 'fecha_vencimiento' | 'monto_cuota' | 'monto_interes' | 'capital_pagado' | 'interes_pagado'>,
+  installment: Pick<Installment, 'fecha_vencimiento' | 'monto_cuota' | 'monto_interes' | 'capital_pagado' | 'interes_pagado' | 'mora_pagada'>,
   tasaMoraDiaria: number,
   referenceDate: Date = new Date()
 ) {
@@ -63,5 +63,6 @@ export function calcularMoraPendienteCobro(
       + Math.max(0, installment.monto_interes - (installment.interes_pagado || 0))
   );
 
-  return Number((saldoBase * (tasaMoraDiaria / 100) * diasVencido).toFixed(2));
+  const moraAcumulada = saldoBase * (tasaMoraDiaria / 100) * diasVencido;
+  return Number(Math.max(0, moraAcumulada - (installment.mora_pagada || 0)).toFixed(2));
 }
