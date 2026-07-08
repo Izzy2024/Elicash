@@ -12,7 +12,7 @@
 # y elimina la variable PUBLIC_API_URL del entorno de Netlify.
 [[redirects]]
   from   = "/api/*"
-  to     = "https://REEMPLAZA-CON-TU-BACKEND.up.railway.app/api/:splat"
+  to     = "https://elicash-production.up.railway.app/api/:splat"
   status = 200
   force  = true
 
